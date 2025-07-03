@@ -1,28 +1,67 @@
 package telegram
 
 import (
-	ctx "context"
-	"log"
+	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/joho/godotenv"
 )
 
-func Run(ctx ctx.Context) {
+// Dependency provider
+type Deps struct {
+	logger slog.Logger
+}
+
+func (this *Deps) Logger() *slog.Logger {
+	return &this.logger
+}
+
+func RunBot() {
+	deps, bot, err := setup()
+	if err != nil {
+		deps.logger.Error("Failed to Bot", slog.Any("error", err))
+		os.Exit(1)
+	}
+
+	runBot(deps, bot)
+}
+
+func setup() (*Deps, *tgbotapi.BotAPI, error) {
+	deps := Deps{
+		logger: *slog.New(slog.NewTextHandler(os.Stdout, nil)),
+	}
+
+	if err := godotenv.Load(); err != nil {
+		return nil, nil, fmt.Errorf("loading .env: %w", err)
+	}
+	bot, err := setupBot(&deps)
+	if err != nil {
+		return nil, nil, fmt.Errorf("setting bot: %w", err)
+	}
+
+	return &deps, bot, nil
+}
+
+func setupBot(deps *Deps) (*tgbotapi.BotAPI, error) {
 	bot, err := tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_TOKEN"))
 	if err != nil {
-		log.Fatalf("Failed to initialize bot: %v", err)
-		return
+		return nil, fmt.Errorf("creating bot client: %w", err)
 	}
-	log.Printf("Authorized on account %s", bot.Self.UserName)
+	deps.logger.Info("Authorized on account: " + bot.Self.UserName)
 
 	bot.Debug = true
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
+	return bot, nil
+}
 
-	updates := bot.GetUpdatesChan(u)
+func runBot(deps *Deps, bot *tgbotapi.BotAPI) error {
+	updateConfig := tgbotapi.NewUpdate(0)
+	updateConfig.Timeout = 60
+	updates := bot.GetUpdatesChan(updateConfig)
+
 	for update := range updates {
 		if update.Message == nil || update.Message.IsCommand() {
 			continue
