@@ -3,12 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 
 	"github.com/EPecherkin/catty-counting/telegram"
-	"github.com/joho/godotenv"
-	// "github.com/EPecherkin/catty-counting/api"
 )
 
 func main() {
@@ -23,9 +20,11 @@ func main() {
 		mode = os.Args[1]
 	}
 
+	ctx := context.Background()
+
 	switch mode {
 	case "telegram":
-		telegram.RunBot()
+		telegram.RunBot(ctx)
 	// case "api":
 	// 	Api.Run()
 	default:
