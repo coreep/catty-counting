@@ -29,7 +29,7 @@ func newBotContext(cctx context.Context) deps.Context {
 		cctx,
 		deps.NewDeps(
 			logger.NewLogger(),
-			// .toai [add db.NewConnection()](todo)
+			// .toai todo[add db.NewConnection()]
 		),
 	)
 }

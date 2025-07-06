@@ -1,4 +1,4 @@
-[
+todo[
 0. Add to the project gorm as our DB orm.
 
 0. Create next structs and corresponding migrations for them:

@@ -8,13 +8,13 @@ import (
 // HARD-LIMITED to logger and DB connection. NEVER EVER expand it.
 type Deps struct {
 	logger *slog.Logger
-	// .toai [add attribute db *gorm.DB](todo)
+	// .toai todo[add attribute db *gorm.DB]
 }
 
 func NewDeps(logger *slog.Logger) *Deps {
 	return &Deps{
 		logger: logger,
-		// .toai [add attribute db *gorm.DB to parameters of the function and use it here](todo)
+		// .toai todo[add attribute db *gorm.DB to parameters of the function and use it here]
 	}
 }
 
@@ -24,7 +24,7 @@ func (deps *Deps) Combine(with *Deps) *Deps {
 	if with.logger != nil {
 		newDeps.logger = with.logger
 	}
-	// .toai [add simmilar if for db](todo)
+	// .toai todo[add simmilar if for db]
 	return newDeps
 }
 
@@ -32,4 +32,4 @@ func (deps *Deps) Logger() *slog.Logger {
 	return deps.logger
 }
 
-//.toai [add simmilar DB() method as Logger()](todo)
+//.toai todo[add simmilar DB() method as Logger()]
