@@ -25,7 +25,13 @@ func RunBot(cctx context.Context) {
 }
 
 func newBotContext(cctx context.Context) deps.Context {
-	return deps.NewContext(cctx, deps.NewDeps(logger.NewLogger()))
+	return deps.NewContext(
+		cctx,
+		deps.NewDeps(
+			logger.NewLogger(),
+			// .toai [add db.NewConnection()](todo)
+		),
+	)
 }
 
 func setup(ctx deps.Context) (*tgbotapi.BotAPI, error) {

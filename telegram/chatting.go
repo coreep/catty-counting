@@ -6,14 +6,16 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+const TIMEOUT = 60
+
 func HandleChatting(ctx deps.Context, bot *tgbotapi.BotAPI) {
 	updateConfig := tgbotapi.NewUpdate(0)
-	updateConfig.Timeout = 60
+	updateConfig.Timeout = TIMEOUT
 	updates := bot.GetUpdatesChan(updateConfig)
 
 	for update := range updates {
 		chat := chatFor(ctx, update)
-		chat.Updates <- update
+		chat.updates <- update
 	}
 }
 
@@ -35,8 +37,8 @@ func goChat(ctx deps.Context, chat *Chat) {
 	defer func() {
 		if err := recover(); err != nil {
 			ctx.Deps().Logger().With(logger.ERROR, err).Error("panic in goChat")
-			chats[chat.UserID] = nil
-			chat.Cancel()
+			chats[chat.userID] = nil
+			chat.cancel()
 		}
 	}()
 	chat.Handle(ctx)
