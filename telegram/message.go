@@ -1,25 +1,14 @@
 package telegram
 
 import (
-	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/llm"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-)
-
-package telegram
-
-import (
-	"context"
-	"fmt"
-	"time"
-
-	"github.com/EPecherkin/catty-counting/deps"
-	"github.com/EPecherkin/catty-counting/llm"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/pkg/errors"
 )
 
 func (chat *Chat) handleMessage(ctx deps.Context, update tgbotapi.Update) error {
@@ -27,52 +16,74 @@ func (chat *Chat) handleMessage(ctx deps.Context, update tgbotapi.Update) error 
 	message := update.Message
 	// .toai todo[Save user message in DB]
 
-	thinkingCtx, cancelThinking := context.WithCancel(context.Background())
-	defer cancelThinking()
-	thinkingMessage, err := chat.sendThinkingMessage(thinkingCtx, message.Chat.ID)
+	responseMessage, err := chat.sendMessage(message.Chat.ID, message.Text)
 	if err != nil {
-		return fmt.Errorf("sending thinking message: %w", err)
+		return fmt.Errorf("sending initial response message: %w", err)
 	}
 
-	llm.HandleUserMessage(ctx, chat.bot, update, thinkingMessage)
+	responseChan := make(chan<- string)
+	errorChan := make(chan<- error)
+	go llm.HandleUserMessage(ctx, responseMessage.Text, responseChan, errorChan)
+	var responseText string
 
-	// .toai done[
-	//   Call a separate function to respond user with "Thinking" plus 3 dots after that. Every 2 seconds this message should be edited and the amount of dots should change on that message, indicating that "thinking" is in progress
-	//   Call llm.HandleUserMessage. It should stream llm's answer, updating the previous sent messasge. BTW, while stream is active - the animated dots should dissapear.
-	// ]
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	lastUpdate := time.Now()
+
+	for {
+		select {
+		case chunk, ok := <-responseChan:
+			if !ok {
+				return
+			}
+			responseText += chunk
+			lastUpdate = time.Now()
+			editMsg := tgbotapi.NewEditMessageText(responseMessage.Chat.ID, responseMessage.MessageID, responseText)
+			_, err := chat.bot.Send(editMsg)
+			if err != nil {
+				// Log error
+			}
+		case err := <-errChan:
+		case <-ticker.C:
+			if time.Since(lastUpdate) > 4*time.Second {
+				chat.showThinkingAnimation(responseMessage, responseText, &lastUpdate)
+			}
+		}
+	}
 
 	return nil
 }
 
-func (chat *Chat) sendThinkingMessage(ctx context.Context, chatID int64) (*tgbotapi.Message, error) {
-	msg := tgbotapi.NewMessage(chatID, "Thinking")
-	message, err := chat.bot.Send(msg)
-	if err != nil {
-		return nil, fmt.Errorf("sending initial thinking message: %w", err)
-	}
-
-	go func() {
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
-		dots := 1
-		for {
-			select {
-			case <-ctx.Done():
+func (chat *Chat) showThinkingAnimation(message *tgbotapi.Message, currentText string, lastUpdate *time.Time) {
+	dots := 1
+	for {
+		select {
+		case <-time.After(2 * time.Second):
+			if time.Since(*lastUpdate) < 4*time.Second {
 				return
-			case <-ticker.C:
-				text := "Thinking"
-				for i := 0; i < dots; i++ {
-					text += "."
-				}
-				dots = (dots % 3) + 1
-				editMsg := tgbotapi.NewEditMessageText(chatID, message.MessageID, text)
-				_, err := chat.bot.Send(editMsg)
-				if err != nil {
-					// Log error, but don't stop the ticker
-				}
 			}
+			var thinkingDots strings.Builder
+			for i := 0; i < dots; i++ {
+				thinkingDots.WriteString(".")
+			}
+			text := fmt.Sprintf("%s (Thinking%s)", currentText, thinkingDots.String())
+			dots = (dots % 3) + 1
+			editMsg := tgbotapi.NewEditMessageText(message.Chat.ID, message.MessageID, text)
+			_, err := chat.bot.Send(editMsg)
+			if err != nil {
+				// Log error
+			}
+		default:
+			time.Sleep(100 * time.Millisecond)
 		}
-	}()
+	}
+}
 
+func (chat *Chat) sendMessage(chatID int64, text string) (*tgbotapi.Message, error) {
+	attrs := tgbotapi.NewMessage(chatID, text)
+	message, err := chat.bot.Send(attrs)
+	if err != nil {
+		return nil, fmt.Errorf("sending message: %w", errors.WithStack(err))
+	}
 	return &message, nil
 }

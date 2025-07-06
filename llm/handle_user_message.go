@@ -7,15 +7,16 @@ import (
 
 	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/google/generative-ai-go/genai"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 const systemPrompt = `You are an accounting helping assistant, which is capable of processing docs, receipts, building statistics and giving advices.`
 
-func HandleUserMessage(ctx deps.Context, bot *tgbotapi.BotAPI, update tgbotapi.Update, thinkingMessage *tgbotapi.Message) {
+func HandleUserMessage(ctx deps.Context, message string, responseChannel chan<- string, errorChannel chan<- error) {
+	defer close(responseChannel)
+
 	client, err := newClient(context.Background())
 	if err != nil {
-		// handle error
+		errorChannel<- fmt.Errorf("getting llm client: %w", err)
 		return
 	}
 
@@ -35,9 +36,6 @@ func HandleUserMessage(ctx deps.Context, bot *tgbotapi.BotAPI, update tgbotapi.U
 		},
 	}
 
-	iter := cs.SendMessageStream(context.Background(), genai.Text(update.Message.Text))
-
-	var responseText string
 	for {
 		resp, err := iter.Next()
 		if err == io.EOF {
@@ -50,12 +48,7 @@ func HandleUserMessage(ctx deps.Context, bot *tgbotapi.BotAPI, update tgbotapi.U
 
 		if len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
 			if part, ok := resp.Candidates[0].Content.Parts[0].(genai.Text); ok {
-				responseText += string(part)
-				editMsg := tgbotapi.NewEditMessageText(thinkingMessage.Chat.ID, thinkingMessage.MessageID, responseText)
-				_, err := bot.Send(editMsg)
-				if err != nil {
-					// Log error, but don't stop the streaming
-				}
+				responseChannel <- string(part)
 			}
 		}
 	}

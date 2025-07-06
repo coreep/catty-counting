@@ -8,24 +8,14 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-package telegram
-
-import (
-	"time"
-
-	"github.com/EPecherkin/catty-counting/deps"
-	"github.com/EPecherkin/catty-counting/logger"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-)
-
 type Chat struct {
-	bot          *tgbotapi.BotAPI
-	userID       int64
-	lastActiveAt time.Time
-	context      [][2]string
-	updates      chan tgbotapi.Update
-	cancel       func()
-	cancelUpdate *func()
+	bot             *tgbotapi.BotAPI
+	userID          int64
+	lastActiveAt    time.Time
+	context         [][2]string
+	updates         chan tgbotapi.Update
+	cancel          func()
+	cancelUpdate    *func()
 }
 
 func NewChat(bot *tgbotapi.BotAPI, userId int64, cancel func()) *Chat {
