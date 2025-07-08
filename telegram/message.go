@@ -22,7 +22,7 @@ func (chat *Chat) handleMessage(ctx deps.Context, update tgbotapi.Update) error 
 	message := update.Message
 	// .toai todo[Save user message in DB]
 
-	responseMessage, err := chat.sendMessage(message.Chat.ID, message.Text)
+	responseMessage, err := chat.sendMessage(message.Chat.ID, "Thinking...")
 	if err != nil {
 		return fmt.Errorf("sending initial response message: %w", err)
 	}
@@ -30,7 +30,7 @@ func (chat *Chat) handleMessage(ctx deps.Context, update tgbotapi.Update) error 
 	responseChan := make(chan string) // closed by GoTalk
 	errorChan := make(chan error)
 	defer close(errorChan)
-	go llm.GoTalk(ctx, responseMessage.Text, responseChan, errorChan)
+	go llm.GoTalk(ctx, message.Text, responseChan, errorChan)
 	var responseText string
 	var sentText string
 

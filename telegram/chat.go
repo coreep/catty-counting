@@ -9,31 +9,40 @@ import (
 )
 
 type Chat struct {
-	bot             *tgbotapi.BotAPI
-	userID          int64
-	lastActiveAt    time.Time
-	context         [][2]string
-	updates         chan tgbotapi.Update
-	cancel          func()
-	cancelUpdate    *func()
+	bot          *tgbotapi.BotAPI
+	userID       int64
+	lastActiveAt time.Time
+	context      [][2]string
+	updates      chan tgbotapi.Update
+	cancel       func()
+	cancelUpdate *func()
 }
 
-func NewChat(bot *tgbotapi.BotAPI, userId int64, cancel func()) *Chat {
-	return &Chat{bot: bot, userID: userId, cancel: cancel, updates: make(chan tgbotapi.Update)}
+func NewChat(bot *tgbotapi.BotAPI, userID int64, cancel func()) *Chat {
+	return &Chat{bot: bot, userID: userID, cancel: cancel, updates: make(chan tgbotapi.Update)}
 }
 
 func (chat *Chat) Handle(ctx deps.Context) {
 	ctx.Deps().Logger().Debug("chat is listening to updates")
 	// todo. select listeting to done to clean up chat.apdates
-	for update := range chat.updates {
+	select {
+	case update, ok := <-chat.updates:
+		if !ok {
+			ctx.Deps().Logger().Debug("chat.updates cancelled")
+			return
+		}
 		ctx.Deps().Logger().Debug("chat received update")
 		if chat.cancelUpdate != nil {
-			ctx.Deps().Logger().Info("chat received update during another interaction. Interrupting...")
+			ctx.Deps().Logger().Info("chat received update during another excahnge. Interrupting...")
 			(*chat.cancelUpdate)()
 		}
 		updateContext, cancel := newUpdateContext(ctx, update)
 		chat.cancelUpdate = &cancel
 		go chat.goUpdate(updateContext, update)
+	case <-ctx.Done():
+		ctx.Deps().Logger().Debug("exchange interrupted")
+		close(chat.updates)
+		return
 	}
 }
 
@@ -43,7 +52,7 @@ func (chat *Chat) goUpdate(ctx deps.Context, update tgbotapi.Update) {
 			ctx.Deps().Logger().With(logger.ERROR, err).Error("panic in goUpdate")
 		}
 		if chat.cancelUpdate != nil {
-			ctx.Deps().Logger().With(logger.MESSAGE, update.Message.MessageID).Debug("exiting during interaction. Interrupting...")
+			ctx.Deps().Logger().With(logger.MESSAGE, update.Message.MessageID).Debug("exiting during exchange. Interrupting...")
 			(*chat.cancelUpdate)()
 			chat.cancelUpdate = nil
 		}
