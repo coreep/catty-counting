@@ -7,16 +7,17 @@ import (
 
 	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/google/generative-ai-go/genai"
+	"github.com/pkg/errors"
 )
 
 const systemPrompt = `You are an accounting helping assistant, which is capable of processing docs, receipts, building statistics and giving advices.`
 
-func HandleUserMessage(ctx deps.Context, message string, responseChannel chan<- string, errorChannel chan<- error) {
+func GoTalk(ctx deps.Context, message string, responseChannel chan<- string, errorChannel chan<- error) {
 	defer close(responseChannel)
 
-	client, err := newClient(context.Background())
+	client, err := newClient(ctx)
 	if err != nil {
-		errorChannel<- fmt.Errorf("getting llm client: %w", err)
+		errorChannel<- fmt.Errorf("creating llm client: %w", err)
 		return
 	}
 
@@ -36,13 +37,15 @@ func HandleUserMessage(ctx deps.Context, message string, responseChannel chan<- 
 		},
 	}
 
+	iter := cs.SendMessageStream(context.Background(), genai.Text(message))
+
 	for {
 		resp, err := iter.Next()
 		if err == io.EOF {
-			break
+			return
 		}
 		if err != nil {
-			// handle error
+			errorChannel<- fmt.Errorf("iterating response: %w", errors.WithStack(err))
 			return
 		}
 

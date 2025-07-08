@@ -11,6 +11,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	EDIT_INTERVAL      = 2 * time.Second
+	THINKING_THRESHOLD = 4 * time.Second
+)
+
 func (chat *Chat) handleMessage(ctx deps.Context, update tgbotapi.Update) error {
 	chat.lastActiveAt = time.Now()
 	message := update.Message
@@ -21,60 +26,46 @@ func (chat *Chat) handleMessage(ctx deps.Context, update tgbotapi.Update) error 
 		return fmt.Errorf("sending initial response message: %w", err)
 	}
 
-	responseChan := make(chan<- string)
-	errorChan := make(chan<- error)
-	go llm.HandleUserMessage(ctx, responseMessage.Text, responseChan, errorChan)
+	responseChan := make(chan string)
+	errorChan := make(chan error)
+	defer close(errorChan)
+	go llm.GoTalk(ctx, responseMessage.Text, responseChan, errorChan)
 	var responseText string
+	var sentText string
 
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
+	updater := time.NewTicker(EDIT_INTERVAL)
+	defer updater.Stop()
 	lastUpdate := time.Now()
 
 	for {
 		select {
+		case <-ctx.Done():
+			err = ctx.Err()
+			if err != nil {
+				return fmt.Errorf("talking to llm: ", errors.WithStack(err))
+			}
+			return nil
 		case chunk, ok := <-responseChan:
 			if !ok {
-				return
+				return errors.New("responseChan died")
 			}
 			responseText += chunk
-			lastUpdate = time.Now()
-			editMsg := tgbotapi.NewEditMessageText(responseMessage.Chat.ID, responseMessage.MessageID, responseText)
-			_, err := chat.bot.Send(editMsg)
-			if err != nil {
-				// Log error
+		case errFromChan := <-errorChan:
+			return fmt.Errorf("errChan speaking: %w", &errFromChan)
+		case <-updater.C:
+			if responseText != sentText {
+				lastUpdate = time.Now()
+				sentText = responseText
+				if err = chat.editMessage(responseMessage, responseText); err != nil {
+					return fmt.Errorf("updating response: %w", err)
+				}
+			} else if since := time.Since(lastUpdate); since > THINKING_THRESHOLD {
+				dots := strings.Repeat(".", 1+int(since.Seconds())%3)
+				thinking := "(Thinking" + dots + ")"
+				if err = chat.editMessage(responseMessage, responseText+thinking); err != nil {
+					return fmt.Errorf("updating thinking: %w", err)
+				}
 			}
-		case err := <-errChan:
-		case <-ticker.C:
-			if time.Since(lastUpdate) > 4*time.Second {
-				chat.showThinkingAnimation(responseMessage, responseText, &lastUpdate)
-			}
-		}
-	}
-
-	return nil
-}
-
-func (chat *Chat) showThinkingAnimation(message *tgbotapi.Message, currentText string, lastUpdate *time.Time) {
-	dots := 1
-	for {
-		select {
-		case <-time.After(2 * time.Second):
-			if time.Since(*lastUpdate) < 4*time.Second {
-				return
-			}
-			var thinkingDots strings.Builder
-			for i := 0; i < dots; i++ {
-				thinkingDots.WriteString(".")
-			}
-			text := fmt.Sprintf("%s (Thinking%s)", currentText, thinkingDots.String())
-			dots = (dots % 3) + 1
-			editMsg := tgbotapi.NewEditMessageText(message.Chat.ID, message.MessageID, text)
-			_, err := chat.bot.Send(editMsg)
-			if err != nil {
-				// Log error
-			}
-		default:
-			time.Sleep(100 * time.Millisecond)
 		}
 	}
 }
@@ -86,4 +77,13 @@ func (chat *Chat) sendMessage(chatID int64, text string) (*tgbotapi.Message, err
 		return nil, fmt.Errorf("sending message: %w", errors.WithStack(err))
 	}
 	return &message, nil
+}
+
+func (chat *Chat) editMessage(message *tgbotapi.Message, text string) error {
+	editMsg := tgbotapi.NewEditMessageText(message.Chat.ID, message.MessageID, text)
+	_, err := chat.bot.Send(editMsg)
+	if err != nil {
+		return fmt.Errorf("updating message: %w", errors.WithStack(err))
+	}
+	return nil
 }
