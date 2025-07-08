@@ -11,7 +11,7 @@ import (
 func main() {
 	defer func() {
 		if err := recover(); err != nil {
-			fmt.Printf("Panic in main: %w\n", err)
+			fmt.Printf("panic in main: %w\n", err)
 		}
 	}()
 
@@ -19,6 +19,7 @@ func main() {
 	if len(os.Args) > 1 {
 		mode = os.Args[1]
 	}
+	fmt.Printf("running in '%s' mode\n", mode)
 
 	ctx := context.Background()
 
@@ -28,6 +29,6 @@ func main() {
 	// case "api":
 	// 	Api.Run()
 	default:
-		fmt.Println("Unknown mode: " + mode)
+		fmt.Println("unknown mode: " + mode)
 	}
 }

@@ -6,18 +6,24 @@ import (
 	"io"
 
 	"github.com/EPecherkin/catty-counting/deps"
+	"github.com/EPecherkin/catty-counting/logger"
 	"github.com/google/generative-ai-go/genai"
 	"github.com/pkg/errors"
 )
 
 const systemPrompt = `You are an accounting helping assistant, which is capable of processing docs, receipts, building statistics and giving advices.`
 
-func GoTalk(ctx deps.Context, message string, responseChannel chan<- string, errorChannel chan<- error) {
-	defer close(responseChannel)
+func GoTalk(ctx deps.Context, message string, responseChan chan<- string, errorChan chan<- error) {
+	defer func() {
+		close(responseChan)
+		if err := recover(); err != nil {
+			ctx.Deps().Logger().With(logger.ERROR, err).Error("failed talking")
+		}
+	}()
 
 	client, err := newClient(ctx)
 	if err != nil {
-		errorChannel<- fmt.Errorf("creating llm client: %w", err)
+		errorChan <- fmt.Errorf("creating llm client: %w", err)
 		return
 	}
 
@@ -40,18 +46,23 @@ func GoTalk(ctx deps.Context, message string, responseChannel chan<- string, err
 	iter := cs.SendMessageStream(context.Background(), genai.Text(message))
 
 	for {
-		resp, err := iter.Next()
-		if err == io.EOF {
+		select {
+		case <-ctx.Done():
 			return
-		}
-		if err != nil {
-			errorChannel<- fmt.Errorf("iterating response: %w", errors.WithStack(err))
-			return
-		}
+		default:
+			resp, err := iter.Next()
+			if err == io.EOF {
+				return
+			}
+			if err != nil {
+				errorChan <- fmt.Errorf("iterating response: %w", errors.WithStack(err))
+				return
+			}
 
-		if len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
-			if part, ok := resp.Candidates[0].Content.Parts[0].(genai.Text); ok {
-				responseChannel <- string(part)
+			if len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
+				if part, ok := resp.Candidates[0].Content.Parts[0].(genai.Text); ok {
+					responseChan <- string(part)
+				}
 			}
 		}
 	}

@@ -15,6 +15,7 @@ import (
 // RunBot Spinning up Telegram Bot
 func RunBot(cctx context.Context) {
 	ctx := newBotContext(cctx)
+	ctx.Deps().Logger().Debug("Running Bot")
 	bot, err := setup(ctx)
 	if err != nil {
 		ctx.Deps().Logger().With(logger.ERROR, err).Error("Failed to Bot")

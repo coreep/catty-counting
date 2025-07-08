@@ -14,12 +14,14 @@ const ERROR = "error"
 const USER = "user"
 const UPDATE = "update"
 const CHAT = "chat"
+const MESSAGE = "message"
 
 // Build a logger that prints error stacktrace
 // Inspired by https://stackoverflow.com/questions/77304845/how-to-log-errors-with-log-slog
 func NewLogger() *slog.Logger {
 	handler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 		ReplaceAttr: replaceAttr,
+		Level: slog.LevelDebug,
 	})
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
