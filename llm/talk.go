@@ -21,13 +21,7 @@ func GoTalk(ctx deps.Context, message string, responseChan chan<- string, errorC
 		}
 	}()
 
-	client, err := newClient(ctx)
-	if err != nil {
-		errorChan <- fmt.Errorf("creating llm client: %w", err)
-		return
-	}
-
-	cs := client.StartChat()
+	cs := ctx.Deps().LLM().StartChat()
 	cs.History = []*genai.Content{
 		{
 			Parts: []genai.Part{

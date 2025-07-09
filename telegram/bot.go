@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/EPecherkin/catty-counting/deps"
+	"github.com/EPecherkin/catty-counting/llm"
 	"github.com/EPecherkin/catty-counting/logger"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
@@ -26,19 +27,27 @@ func RunBot(cctx context.Context) {
 }
 
 func newBotContext(cctx context.Context) deps.Context {
+	lgr := logger.NewLogger()
+	if err := godotenv.Load(); err != nil {
+		lgr.With(logger.ERROR, errors.WithStack(err)).Error("can't load .env")
+		os.Exit(1)
+	}
+	llm, err := llm.NewClient(cctx, lgr)
+	if err != nil {
+		lgr.With(logger.ERROR, err).Error("failed to Bot")
+		os.Exit(1)
+	}
 	return deps.NewContext(
 		cctx,
 		deps.NewDeps(
-			logger.NewLogger(),
+			lgr,
+			llm,
 			// .toai todo[add db.NewConnection()]
 		),
 	)
 }
 
 func setup(ctx deps.Context) (*tgbotapi.BotAPI, error) {
-	if err := godotenv.Load(); err != nil {
-		return nil, fmt.Errorf("loading .env: %w", errors.WithStack(err))
-	}
 	bot, err := setupBot(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("setting bot: %w", err)

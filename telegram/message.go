@@ -56,12 +56,12 @@ func (chat *Chat) handleMessage(ctx deps.Context, update tgbotapi.Update) error 
 			responseText += chunk
 		case errFromChan, ok := <-errorChan:
 			if !ok {
-				if err = chat.editMessage(responseMessage, responseText + "\nSomething went wrong. Try again, please."); err != nil {
+				if err = chat.editMessage(responseMessage, responseText+"\nSomething went wrong. Try again, please."); err != nil {
 					return fmt.Errorf("updating response on error: %w", err)
 				}
 				return nil
 			}
-			return fmt.Errorf("errChan speaking: %w", &errFromChan)
+			return fmt.Errorf("errChan speaking: %w", errFromChan)
 		case <-updater.C:
 			if responseText != sentText {
 				lastUpdate = time.Now()

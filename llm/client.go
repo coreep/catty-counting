@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/google/generative-ai-go/genai"
@@ -10,7 +11,7 @@ import (
 	"google.golang.org/api/option"
 )
 
-func newClient(ctx context.Context) (*genai.GenerativeModel, error) {
+func NewClient(ctx context.Context, logger *slog.Logger) (*genai.GenerativeModel, error) {
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
 		return nil, errors.New("GEMINI_API_KEY is not set")

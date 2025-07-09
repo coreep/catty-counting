@@ -75,6 +75,7 @@ func newChatContext(ctx deps.Context, userId int64) (newCtx deps.Context, cancel
 	newCtx = ctx.WithDeps(deps.NewDeps(
 		ctx.Deps().Logger().
 			With(logger.USER, userId),
+		nil,
 	))
 	newCtx, cancel = newCtx.WithCancel()
 	return newCtx, cancel
@@ -86,6 +87,7 @@ func newUpdateContext(ctx deps.Context, update tgbotapi.Update) (newCtx deps.Con
 			With(logger.UPDATE, update.UpdateID).
 			With(logger.CHAT, update.Message.Chat.ID).
 			With(logger.MESSAGE, update.Message.MessageID),
+		nil,
 	))
 	newCtx, cancel = newCtx.WithCancel()
 	return newCtx, cancel
