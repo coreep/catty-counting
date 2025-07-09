@@ -19,7 +19,7 @@ const MESSAGE = "message"
 // Build a logger that prints error stacktrace
 // Inspired by https://stackoverflow.com/questions/77304845/how-to-log-errors-with-log-slog
 func NewLogger() *slog.Logger {
-	handler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		ReplaceAttr: replaceAttr,
 		Level: slog.LevelDebug,
 	})
