@@ -2,18 +2,18 @@ package deps
 
 import (
 	"log/slog"
-	"github.com/google/generative-ai-go/genai"
+	"google.golang.org/genai"
 )
 
 // Dependency provider to be held inside context.
 // HARD-LIMITED to logger and DB connection. NEVER EVER expand it.
 type Deps struct {
 	logger *slog.Logger
-	llm *genai.GenerativeModel
+	llm *genai.Client
 	// .toai todo[add attribute db *gorm.DB]
 }
 
-func NewDeps(logger *slog.Logger, llm *genai.GenerativeModel) *Deps {
+func NewDeps(logger *slog.Logger, llm *genai.Client) *Deps {
 	return &Deps{
 		logger: logger,
 		llm: llm,
@@ -38,7 +38,7 @@ func (deps *Deps) Logger() *slog.Logger {
 	return deps.logger
 }
 
-func (deps *Deps) LLM() *genai.GenerativeModel {
+func (deps *Deps) LLM() *genai.Client {
 	return deps.llm
 }
 

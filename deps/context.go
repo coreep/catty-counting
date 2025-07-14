@@ -26,7 +26,7 @@ func (ctx *Context) WithDeps(deps *Deps) Context {
 }
 
 func (ctx *Context) WithCancel() (newCtx Context, cancel func()) {
-	cctx, cancel := context.WithCancel(ctx)
+	cctx, cancel := context.WithCancel(ctx.Context)
 	newCtx = NewContext(cctx, ctx.Deps())
 	return newCtx, cancel
 }

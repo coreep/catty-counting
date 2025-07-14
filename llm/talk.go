@@ -1,14 +1,13 @@
 package llm
 
 import (
-	"context"
 	"fmt"
 	"io"
 
 	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/logger"
-	"github.com/google/generative-ai-go/genai"
 	"github.com/pkg/errors"
+	"google.golang.org/genai"
 )
 
 const systemPrompt = `You are an accounting helping assistant, which is capable of processing docs, receipts, building statistics and giving advices.`
@@ -21,44 +20,21 @@ func GoTalk(ctx deps.Context, message string, responseChan chan<- string, errorC
 		}
 	}()
 
-	cs := ctx.Deps().LLM().StartChat()
-	cs.History = []*genai.Content{
-		{
-			Parts: []genai.Part{
-				genai.Text(systemPrompt),
-			},
-			Role: "user",
-		},
-		{
-			Parts: []genai.Part{
-				genai.Text("Ok"),
-			},
-			Role: "model",
-		},
-	}
+	config := &genai.GenerateContentConfig{SystemInstruction: &genai.Content{Parts: []*genai.Part{{Text: systemPrompt}}}}
+	iter := ctx.Deps().LLM().Models.GenerateContentStream(ctx, "gemini-1.5-flash", genai.Text(message), config)
 
-	iter := cs.SendMessageStream(context.Background(), genai.Text(message))
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			resp, err := iter.Next()
-			if err == io.EOF {
-				return
-			}
-			if err != nil {
-				errorChan <- fmt.Errorf("iterating response: %w", errors.WithStack(err))
-				return
-			}
-
-			if len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
-				if part, ok := resp.Candidates[0].Content.Parts[0].(genai.Text); ok {
-					responseChan <- string(part)
-				}
-			}
+	for resp, err := range iter {
+		if ctx.Err() != nil {
+			break
 		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			errorChan <- fmt.Errorf("iterating response: %w", errors.WithStack(err))
+			break
+		}
+		responseChan <- resp.Text()
 	}
 }
 
