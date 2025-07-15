@@ -4,17 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 
+	"github.com/EPecherkin/catty-counting/config"
 	"github.com/pkg/errors"
 	"google.golang.org/genai"
 )
 
 func NewClient(ctx context.Context, logger *slog.Logger) (*genai.Client, error) {
-	apiKey := os.Getenv("GEMINI_API_KEY")
-	if apiKey == "" {
-		return nil, errors.New("GEMINI_API_KEY is not set")
-	}
+	apiKey := config.GeminiApiKey()
 
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{APIKey: apiKey, Backend: genai.BackendGeminiAPI})
 	if err != nil {
