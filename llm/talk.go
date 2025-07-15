@@ -12,7 +12,7 @@ import (
 
 const systemPrompt = `You are an accounting helping assistant, which is capable of processing docs, receipts, building statistics and giving advices.`
 
-func GoTalk(ctx deps.Context, message string, responseChan chan<- string, errorChan chan<- error) {
+func GoTalk(ctx deps.Context, message string, responseChan chan<- string, errorChan chan<- error, chat *genai.Chat) {
 	defer func() {
 		close(responseChan)
 		if err := recover(); err != nil {
@@ -20,10 +20,7 @@ func GoTalk(ctx deps.Context, message string, responseChan chan<- string, errorC
 		}
 	}()
 
-	config := &genai.GenerateContentConfig{SystemInstruction: &genai.Content{Parts: []*genai.Part{{Text: systemPrompt}}}}
-	iter := ctx.Deps().LLM().Models.GenerateContentStream(ctx, "gemini-1.5-flash", genai.Text(message), config)
-
-	for resp, err := range iter {
+	for resp, err := range chat.SendMessageStream(ctx, genai.Part{Text: message}) {
 		if ctx.Err() != nil {
 			break
 		}

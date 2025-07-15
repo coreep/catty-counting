@@ -24,22 +24,10 @@ func RunBot(ctx deps.Context) {
 }
 
 func setup(ctx deps.Context) (*tgbotapi.BotAPI, error) {
-	bot, err := setupBot(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("setting bot: %w", err)
-	}
-
-	return bot, nil
-}
-
-func setupBot(ctx deps.Context) (*tgbotapi.BotAPI, error) {
 	token := config.TelegramToken()
-	if token == "" {
-		return nil, errors.New("TELEGRAM_TOKEN is missing")
-	}
 	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
-		return nil, fmt.Errorf("creating bot client: %w", err)
+		return nil, fmt.Errorf("creating bot client: %w", errors.WithStack(err))
 	}
 	ctx.Deps().Logger().With("user", bot.Self.UserName).Info("Authorized on account")
 

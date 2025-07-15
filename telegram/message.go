@@ -30,7 +30,7 @@ func (chat *Chat) handleMessage(ctx deps.Context, update tgbotapi.Update) error 
 	responseChan := make(chan string) // closed by GoTalk
 	errorChan := make(chan error)
 	defer close(errorChan)
-	go llm.GoTalk(ctx, message.Text, responseChan, errorChan)
+	go llm.GoTalk(ctx, message.Text, responseChan, errorChan, chat.llmChat)
 	var responseText string
 	var sentText string
 
