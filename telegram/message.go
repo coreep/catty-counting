@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/EPecherkin/catty-counting/deps"
-	"github.com/EPecherkin/catty-counting/llm"
 	"github.com/EPecherkin/catty-counting/logger"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
@@ -30,7 +29,7 @@ func (chat *Chat) handleMessage(ctx deps.Context, update tgbotapi.Update) error 
 	responseChan := make(chan string) // closed by GoTalk
 	errorChan := make(chan error)
 	defer close(errorChan)
-	go llm.GoTalk(ctx, message.Text, responseChan, errorChan, chat.llmChat)
+	go chat.llmChat.GoTalk(ctx, message.Text, responseChan, errorChan)
 	var responseText string
 	var sentText string
 
@@ -82,7 +81,7 @@ func (chat *Chat) handleMessage(ctx deps.Context, update tgbotapi.Update) error 
 
 func (chat *Chat) sendMessage(chatID int64, text string) (*tgbotapi.Message, error) {
 	attrs := tgbotapi.NewMessage(chatID, text)
-	message, err := chat.bot.Send(attrs)
+	message, err := chat.bot.tgbot.Send(attrs)
 	if err != nil {
 		return nil, fmt.Errorf("sending message: %w", errors.WithStack(err))
 	}
@@ -91,7 +90,7 @@ func (chat *Chat) sendMessage(chatID int64, text string) (*tgbotapi.Message, err
 
 func (chat *Chat) editMessage(message *tgbotapi.Message, text string) error {
 	editMsg := tgbotapi.NewEditMessageText(message.Chat.ID, message.MessageID, text)
-	_, err := chat.bot.Send(editMsg)
+	_, err := chat.bot.tgbot.Send(editMsg)
 	if err != nil {
 		return fmt.Errorf("updating message: %w", errors.WithStack(err))
 	}

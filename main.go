@@ -10,8 +10,6 @@ import (
 	"github.com/EPecherkin/catty-counting/llm"
 	"github.com/EPecherkin/catty-counting/logger"
 	"github.com/EPecherkin/catty-counting/telegram"
-	"github.com/joho/godotenv"
-	"github.com/pkg/errors"
 )
 
 func main() {
@@ -21,7 +19,11 @@ func main() {
 		}
 	}()
 
-	ctx := initialize()
+	ctx, llmClient, err := initialize()
+	if err != nil {
+		ctx.Deps().Logger().With(logger.ERROR, err).Error("Initialization failed")
+		os.Exit(1)
+	}
 
 	mode := "telegram"
 	if len(os.Args) > 1 {
@@ -31,7 +33,7 @@ func main() {
 
 	switch mode {
 	case "telegram":
-		telegram.RunBot(ctx)
+		telegram.NewBot(llmClient).Run(ctx)
 	// case "api":
 	// 	Api.Run()
 	default:
@@ -39,27 +41,23 @@ func main() {
 	}
 }
 
-func initialize() deps.Context {
+func initialize() (deps.Context, *llm.Client, error) {
 	lgr := logger.NewLogger()
-	if err := godotenv.Load(); err != nil {
-		lgr.With(logger.ERROR, errors.WithStack(err)).Error("can't load .env")
-		os.Exit(1)
-	}
-	if err := config.Init(); err != nil {
-		lgr.With(logger.ERROR, err).Error("failed to config")
-	}
 	ctx := context.Background()
-	llm, err := llm.NewClient(ctx, lgr)
-	if err != nil {
-		lgr.With(logger.ERROR, err).Error("failed to create llm client")
-		os.Exit(1)
-	}
-	return deps.NewContext(
+	myCtx := deps.NewContext(
 		ctx,
 		deps.NewDeps(
 			lgr,
-			llm,
 			// .toai todo[add db.NewConnection()]
 		),
 	)
+
+	if err := config.Init(); err != nil {
+		return myCtx, nil, fmt.Errorf("initializing config: %w", err)
+	}
+	llmClient, err := llm.NewClient(myCtx)
+	if err != nil {
+		return myCtx, nil, fmt.Errorf("initializing llmClient: %w", err)
+	}
+	return myCtx, llmClient, nil
 }

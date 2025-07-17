@@ -10,9 +10,17 @@ import (
 	"google.golang.org/genai"
 )
 
+type Chat struct {
+	llmChat *genai.Chat
+}
+
+func newChat(llmChat *genai.Chat) *Chat {
+	return &Chat{llmChat: llmChat}
+}
+
 const systemPrompt = `You are an accounting helping assistant, which is capable of processing docs, receipts, building statistics and giving advices.`
 
-func GoTalk(ctx deps.Context, message string, responseChan chan<- string, errorChan chan<- error, chat *genai.Chat) {
+func (chat *Chat) GoTalk(ctx deps.Context, message string, responseChan chan<- string, errorChan chan<- error) {
 	defer func() {
 		close(responseChan)
 		if err := recover(); err != nil {
@@ -20,7 +28,7 @@ func GoTalk(ctx deps.Context, message string, responseChan chan<- string, errorC
 		}
 	}()
 
-	for resp, err := range chat.SendMessageStream(ctx, genai.Part{Text: message}) {
+	for resp, err := range chat.llmChat.SendMessageStream(ctx, genai.Part{Text: message}) {
 		if ctx.Err() != nil {
 			break
 		}

@@ -1,8 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
 )
 
@@ -14,6 +16,10 @@ type config struct {
 var instance config
 
 func Init() error {
+	if err := godotenv.Load(); err != nil {
+		return fmt.Errorf("loading .env: %w", errors.WithStack(err))
+	}
+
 	geminiApiKey := os.Getenv("GEMINI_API_KEY")
 	if geminiApiKey == "" {
 		return errors.New("GEMINI_API_KEY is missing")
