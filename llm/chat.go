@@ -26,7 +26,7 @@ func (chat *Chat) GoTalk(ctx context.Context, message string, responseChan chan<
 	defer func() {
 		close(responseChan)
 		if err := recover(); err != nil {
-			ctx.Deps().Logger().With(logger.ERROR, err).Error("failed talking")
+			chat.lgr.With(logger.ERROR, err).Error("failed talking")
 		}
 	}()
 

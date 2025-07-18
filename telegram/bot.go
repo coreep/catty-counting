@@ -44,7 +44,7 @@ func NewBot(deps *BotDeps) *Bot {
 
 func (bot *Bot) Run(ctx context.Context) {
 	bot.deps.lgr.Debug("Running Bot")
-	err := bot.setup(ctx)
+	err := bot.setup()
 	if err != nil {
 		bot.deps.lgr.With(logger.ERROR, err).Error("Failed to Bot")
 		os.Exit(1)
@@ -53,7 +53,7 @@ func (bot *Bot) Run(ctx context.Context) {
 	bot.handleUpdates(ctx)
 }
 
-func (bot *Bot) setup(ctx context.Context) error {
+func (bot *Bot) setup() error {
 	token := config.TelegramToken()
 	tgbot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
@@ -85,15 +85,13 @@ func (bot *Bot) chatFor(ctx context.Context, userID int64) *Chat {
 	chat, ok := bot.chats[userID]
 	if !ok || chat == nil {
 		chatCtx, cancel := context.WithCancel(ctx)
-		chatLgr := bot.deps.lgr.With(logger.TELEGRAM_USER_ID, userID)
-		chatLgr.Info("creating new chat")
 		closeF := func() {
 			bot.chats[userID] = nil
 			cancel()
 		}
-		chat = NewChat(userID, closeF, NewChatDeps(chatLgr, bot.deps.fileBucket, bot.deps.llmClient))
+		chat = NewChat(userID, closeF, NewChatDeps(bot.deps.lgr, bot.tgbot, bot.deps.fileBucket, bot.deps.llmClient))
 		bot.chats[userID] = chat
-		go chat.GoChat()
+		go chat.GoChat(chatCtx)
 	}
 	return chat
 }
