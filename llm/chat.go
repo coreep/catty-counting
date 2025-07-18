@@ -1,10 +1,11 @@
 package llm
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"log/slog"
 
-	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/logger"
 	"github.com/pkg/errors"
 	"google.golang.org/genai"
@@ -12,15 +13,16 @@ import (
 
 type Chat struct {
 	llmChat *genai.Chat
+	lgr     *slog.Logger
 }
 
-func newChat(llmChat *genai.Chat) *Chat {
-	return &Chat{llmChat: llmChat}
+func newChat(llmChat *genai.Chat, lgr *slog.Logger) *Chat {
+	return &Chat{llmChat: llmChat, lgr: lgr}
 }
 
 const systemPrompt = `You are an accounting helping assistant, which is capable of processing docs, receipts, building statistics and giving advices.`
 
-func (chat *Chat) GoTalk(ctx deps.Context, message string, responseChan chan<- string, errorChan chan<- error) {
+func (chat *Chat) GoTalk(ctx context.Context, message string, responseChan chan<- string, errorChan chan<- error) {
 	defer func() {
 		close(responseChan)
 		if err := recover(); err != nil {

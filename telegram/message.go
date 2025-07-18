@@ -16,7 +16,7 @@ const (
 	THINKING_THRESHOLD = 4 * time.Second
 )
 
-func (chat *Chat) handleMessage(ctx deps.Context, update tgbotapi.Update) error {
+func (chat *Chat) handleMessage(ctx context.Context, update tgbotapi.Update) error {
 	chat.lastActiveAt = time.Now()
 	message := update.Message
 	// .toai todo[Save user message in DB]

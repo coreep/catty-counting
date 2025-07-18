@@ -19,14 +19,14 @@ const (
 	OFFSET  = 0
 )
 
-type BotDeps interface {
-	logger     *slog.Logger
+type BotDeps struct {
+	lgr        *slog.Logger
 	fileBucket *blob.Bucket
 	llmClient  *llm.Client
 }
 
-func NewBotDeps(logger *slog.Logger, fileBucket *blob.Bucket, llmClient *llm.Client) *BotDeps {
-	return &BotDeps{logger: logger, fileBucket: fileBucket, llmClient: llmClient}
+func NewBotDeps(lgr *slog.Logger, fileBucket *blob.Bucket, llmClient *llm.Client) *BotDeps {
+	return &BotDeps{lgr: lgr, fileBucket: fileBucket, llmClient: llmClient}
 }
 
 type Bot struct {
@@ -43,14 +43,14 @@ func NewBot(deps *BotDeps) *Bot {
 }
 
 func (bot *Bot) Run(ctx context.Context) {
-	bot.deps.logger.Debug("Running Bot")
+	bot.deps.lgr.Debug("Running Bot")
 	err := bot.setup(ctx)
 	if err != nil {
-		bot.deps.logger.With(logger.ERROR, err).Error("Failed to Bot")
+		bot.deps.lgr.With(logger.ERROR, err).Error("Failed to Bot")
 		os.Exit(1)
 	}
 
-	bot.handleChatting(ctx)
+	bot.handleUpdates(ctx)
 }
 
 func (bot *Bot) setup(ctx context.Context) error {
@@ -59,52 +59,41 @@ func (bot *Bot) setup(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("creating telegram bot client: %w", errors.WithStack(err))
 	}
-	bot.deps.logger.With("user", tgbot.Self.UserName).Info("Authorized on account")
+	bot.deps.lgr.With("user", tgbot.Self.UserName).Info("Authorized on account")
 
 	tgbot.Debug = true
 	bot.tgbot = tgbot
 	return nil
 }
 
-func (bot *Bot) handleChatting(ctx context.Context) {
-	bot.deps.logger.With("timeout", TIMEOUT).With("offset", OFFSET).Info("listening for updates")
+func (bot *Bot) handleUpdates(ctx context.Context) {
+	bot.deps.lgr.With("timeout", TIMEOUT).With("offset", OFFSET).Info("listening for updates")
 	updateConfig := tgbotapi.NewUpdate(0)
 	updateConfig.Timeout = TIMEOUT
 	updates := bot.tgbot.GetUpdatesChan(updateConfig)
 
 	for update := range updates {
-		bot.deps.logger.With("update", update).Debug("bot received update")
-		chat := bot.chatFor(ctx, update)
+		bot.deps.lgr.With("update", update).Debug("bot received update")
+		chat := bot.chatFor(ctx, update.Message.From.ID)
 		if chat != nil {
 			chat.updates <- update
 		}
 	}
 }
 
-func (bot *Bot) chatFor(ctx context.Context, update tgbotapi.Update) *Chat {
-	userID := update.Message.From.ID
+func (bot *Bot) chatFor(ctx context.Context, userID int64) *Chat {
 	chat, ok := bot.chats[userID]
 	if !ok || chat == nil {
-		chatCtx, cancel := newChatContext(ctx, userID)
-		chatCtx.Deps().Logger().Info("creating new chat")
-		chat = NewChat(userID, cancel, bot)
+		chatCtx, cancel := context.WithCancel(ctx)
+		chatLgr := bot.deps.lgr.With(logger.TELEGRAM_USER_ID, userID)
+		chatLgr.Info("creating new chat")
+		closeF := func() {
+			bot.chats[userID] = nil
+			cancel()
+		}
+		chat = NewChat(userID, closeF, NewChatDeps(chatLgr, bot.deps.fileBucket, bot.deps.llmClient))
 		bot.chats[userID] = chat
-		go bot.goChat(chatCtx, chat)
+		go chat.GoChat()
 	}
 	return chat
-}
-
-func (bot *Bot) closeChat(ctx context.Context, chat *Chat) {
-	bot.chats[chat.userID] = nil
-	chat.cancel()
-}
-
-func (bot *Bot) goChat(ctx context.Context, chat *Chat) {
-	defer func() {
-		if err := recover(); err != nil {
-			bot.deps.logger.With(logger.ERROR, err).Error("panic in goChat")
-			bot.closeChat(ctx, chat)
-		}
-	}()
-	chat.Handle(ctx)
 }

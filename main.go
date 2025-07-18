@@ -56,7 +56,7 @@ func initialize(ctx context.Context) (*slog.Logger, *blob.Bucket, *llm.Client, e
 		return lgr, nil, nil, fmt.Errorf("initializing file blob: %w", errors.WithStack(err))
 	}
 
-	llmClient, err := llm.CreateClient(ctx)
+	llmClient, err := llm.CreateClient(ctx, lgr)
 	if err != nil {
 		return lgr, nil, nil, fmt.Errorf("", err)
 	}
