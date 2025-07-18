@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"log/slog"
 	"time"
 
 	"github.com/EPecherkin/catty-counting/deps"
@@ -8,6 +9,10 @@ import (
 	"github.com/EPecherkin/catty-counting/logger"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
+
+type ChatDeps struct {
+	logger *slog.Logger
+}
 
 type Chat struct {
 	bot          *Bot

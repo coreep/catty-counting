@@ -8,34 +8,40 @@ import (
 	"github.com/pkg/errors"
 )
 
-type config struct {
+var (
+	fileBucket    string
 	geminiApiKey  string
 	telegramToken string
-}
-
-var instance config
+)
 
 func Init() error {
 	if err := godotenv.Load(); err != nil {
 		return fmt.Errorf("loading .env: %w", errors.WithStack(err))
 	}
 
-	geminiApiKey := os.Getenv("GEMINI_API_KEY")
+	fileBucket = os.Getenv("FILE_BUCKET")
+	if geminiApiKey == "" {
+		return errors.New("FILE_BUCKET is missing")
+	}
+	geminiApiKey = os.Getenv("GEMINI_API_KEY")
 	if geminiApiKey == "" {
 		return errors.New("GEMINI_API_KEY is missing")
 	}
-	telegramToken := os.Getenv("TELEGRAM_TOKEN")
+	telegramToken = os.Getenv("TELEGRAM_TOKEN")
 	if telegramToken == "" {
 		return errors.New("TELEGRAM_TOKEN is missing")
 	}
-	instance = config{geminiApiKey: geminiApiKey, telegramToken: telegramToken}
 	return nil
 }
 
+func FileBucket() string {
+	return fileBucket
+}
+
 func GeminiApiKey() string {
-	return instance.geminiApiKey
+	return geminiApiKey
 }
 
 func TelegramToken() string {
-	return instance.telegramToken
+	return telegramToken
 }

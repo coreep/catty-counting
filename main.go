@@ -3,13 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/EPecherkin/catty-counting/config"
-	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/llm"
 	"github.com/EPecherkin/catty-counting/logger"
 	"github.com/EPecherkin/catty-counting/telegram"
+	"github.com/pkg/errors"
+	"gocloud.dev/blob"
 )
 
 func main() {
@@ -19,9 +21,10 @@ func main() {
 		}
 	}()
 
-	ctx, llmClient, err := initialize()
+	ctx := context.Background()
+	lgr, fileBucket, llmClient, err := initialize(ctx)
 	if err != nil {
-		ctx.Deps().Logger().With(logger.ERROR, err).Error("Initialization failed")
+		lgr.With(logger.ERROR, err).Error("Initialization failed")
 		os.Exit(1)
 	}
 
@@ -29,11 +32,11 @@ func main() {
 	if len(os.Args) > 1 {
 		mode = os.Args[1]
 	}
-	ctx.Deps().Logger().Info("running in '%s' mode\n", mode)
+	lgr.Info("running in '" + mode + "' mode")
 
 	switch mode {
 	case "telegram":
-		telegram.NewBot(llmClient).Run(ctx)
+		telegram.NewBot(telegram.NewBotDeps(lgr, fileBucket, llmClient)).Run(ctx)
 	// case "api":
 	// 	Api.Run()
 	default:
@@ -41,23 +44,21 @@ func main() {
 	}
 }
 
-func initialize() (deps.Context, *llm.Client, error) {
+func initialize(ctx context.Context) (*slog.Logger, *blob.Bucket, *llm.Client, error) {
 	lgr := logger.NewLogger()
-	ctx := context.Background()
-	myCtx := deps.NewContext(
-		ctx,
-		deps.NewDeps(
-			lgr,
-			// .toai todo[add db.NewConnection()]
-		),
-	)
 
 	if err := config.Init(); err != nil {
-		return myCtx, nil, fmt.Errorf("initializing config: %w", err)
+		return lgr, nil, nil, fmt.Errorf("initializing config: %w", err)
 	}
-	llmClient, err := llm.NewClient(myCtx)
+
+	fileBucket, err := blob.OpenBucket(ctx, config.FileBucket())
 	if err != nil {
-		return myCtx, nil, fmt.Errorf("initializing llmClient: %w", err)
+		return lgr, nil, nil, fmt.Errorf("initializing file blob: %w", errors.WithStack(err))
 	}
-	return myCtx, llmClient, nil
+
+	llmClient, err := llm.CreateClient(ctx)
+	if err != nil {
+		return lgr, nil, nil, fmt.Errorf("", err)
+	}
+	return lgr, fileBucket, llmClient, nil
 }

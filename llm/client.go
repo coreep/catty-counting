@@ -1,10 +1,10 @@
 package llm
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/EPecherkin/catty-counting/config"
-	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/pkg/errors"
 	"google.golang.org/genai"
 )
