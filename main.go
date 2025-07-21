@@ -8,6 +8,7 @@ import (
 
 	"github.com/EPecherkin/catty-counting/config"
 	"github.com/EPecherkin/catty-counting/llm"
+	"github.com/EPecherkin/catty-counting/llm/google"
 	"github.com/EPecherkin/catty-counting/logger"
 	"github.com/EPecherkin/catty-counting/telegram"
 	"github.com/pkg/errors"
@@ -56,7 +57,7 @@ func initialize(ctx context.Context) (*slog.Logger, *blob.Bucket, *llm.Client, e
 		return lgr, nil, nil, fmt.Errorf("initializing file blob: %w", errors.WithStack(err))
 	}
 
-	llmClient, err := llm.CreateClient(ctx, lgr)
+	llmClient, err := google.CreateClient(ctx, lgr)
 	if err != nil {
 		return lgr, nil, nil, fmt.Errorf("", err)
 	}

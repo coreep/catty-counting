@@ -1,4 +1,4 @@
-package llm
+package google
 
 import (
 	"context"
@@ -12,12 +12,12 @@ import (
 )
 
 type Chat struct {
-	llmChat *genai.Chat
+	gChat *genai.Chat
 	lgr     *slog.Logger
 }
 
-func newChat(llmChat *genai.Chat, lgr *slog.Logger) *Chat {
-	return &Chat{llmChat: llmChat, lgr: lgr}
+func newChat(gChat *genai.Chat, lgr *slog.Logger) *Chat {
+	return &Chat{gChat: gChat, lgr: lgr}
 }
 
 const systemPrompt = `You are an accounting helping assistant, which is capable of processing docs, receipts, building statistics and giving advices.`
@@ -30,7 +30,7 @@ func (chat *Chat) GoTalk(ctx context.Context, message string, responseChan chan<
 		}
 	}()
 
-	for resp, err := range chat.llmChat.SendMessageStream(ctx, genai.Part{Text: message}) {
+	for resp, err := range chat.gChat.SendMessageStream(ctx, genai.Part{Text: message}) {
 		if ctx.Err() != nil {
 			break
 		}

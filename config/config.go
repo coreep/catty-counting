@@ -11,6 +11,7 @@ import (
 var (
 	fileBucket    string
 	geminiApiKey  string
+	openAiApiKey  string
 	telegramToken string
 )
 
@@ -23,9 +24,13 @@ func Init() error {
 	if geminiApiKey == "" {
 		return errors.New("FILE_BUCKET is missing")
 	}
-	geminiApiKey = os.Getenv("GEMINI_API_KEY")
-	if geminiApiKey == "" {
-		return errors.New("GEMINI_API_KEY is missing")
+	// geminiApiKey = os.Getenv("GEMINI_API_KEY")
+	// if geminiApiKey == "" {
+	// 	return errors.New("GEMINI_API_KEY is missing")
+	// }
+	openAiApiKey = os.Getenv("OPENAI_API_KEY")
+	if openAiApiKey == "" {
+		return errors.New("OPENAI_API_KEY is missing")
 	}
 	telegramToken = os.Getenv("TELEGRAM_TOKEN")
 	if telegramToken == "" {
@@ -40,6 +45,10 @@ func FileBucket() string {
 
 func GeminiApiKey() string {
 	return geminiApiKey
+}
+
+func OpenAiApiKey() string {
+	return openAiApiKey
 }
 
 func TelegramToken() string {

@@ -22,10 +22,10 @@ const (
 type BotDeps struct {
 	lgr        *slog.Logger
 	fileBucket *blob.Bucket
-	llmClient  *llm.Client
+	llmClient  llm.Client
 }
 
-func NewBotDeps(lgr *slog.Logger, fileBucket *blob.Bucket, llmClient *llm.Client) *BotDeps {
+func NewBotDeps(lgr *slog.Logger, fileBucket *blob.Bucket, llmClient llm.Client) *BotDeps {
 	return &BotDeps{lgr: lgr, fileBucket: fileBucket, llmClient: llmClient}
 }
 

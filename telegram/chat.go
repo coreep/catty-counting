@@ -26,7 +26,7 @@ type Chat struct {
 	deps         *ChatDeps
 	updates      chan tgbotapi.Update
 	lastActiveAt time.Time
-	llmChat      *llm.Chat
+	llmChat      llm.Chat
 	response     *Response
 }
 
