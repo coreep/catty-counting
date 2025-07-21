@@ -21,7 +21,7 @@ func Init() error {
 	}
 
 	fileBucket = os.Getenv("FILE_BUCKET")
-	if geminiApiKey == "" {
+	if fileBucket == "" {
 		return errors.New("FILE_BUCKET is missing")
 	}
 	// geminiApiKey = os.Getenv("GEMINI_API_KEY")

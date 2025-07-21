@@ -16,7 +16,7 @@ type ChatDeps struct {
 	BotDeps
 }
 
-func NewChatDeps(lgr *slog.Logger, tgbot *tgbotapi.BotAPI, fileBucket *blob.Bucket, llmClient *llm.Client) *ChatDeps {
+func NewChatDeps(lgr *slog.Logger, tgbot *tgbotapi.BotAPI, fileBucket *blob.Bucket, llmClient llm.Client) *ChatDeps {
 	return &ChatDeps{tgbot: tgbot, BotDeps: BotDeps{lgr: lgr, fileBucket: fileBucket, llmClient: llmClient}}
 }
 

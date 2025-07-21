@@ -23,10 +23,10 @@ type ResponseDeps struct {
 	lgr        *slog.Logger
 	tgbot      *tgbotapi.BotAPI
 	fileBucket *blob.Bucket
-	llmChat    *llm.Chat
+	llmChat    llm.Chat
 }
 
-func NewResponseDeps(lgr *slog.Logger, tgbot *tgbotapi.BotAPI, fileBucket *blob.Bucket, llmChat *llm.Chat) *ResponseDeps {
+func NewResponseDeps(lgr *slog.Logger, tgbot *tgbotapi.BotAPI, fileBucket *blob.Bucket, llmChat llm.Chat) *ResponseDeps {
 	return &ResponseDeps{lgr: lgr, tgbot: tgbot, fileBucket: fileBucket, llmChat: llmChat}
 }
 

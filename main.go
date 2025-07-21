@@ -8,11 +8,12 @@ import (
 
 	"github.com/EPecherkin/catty-counting/config"
 	"github.com/EPecherkin/catty-counting/llm"
-	"github.com/EPecherkin/catty-counting/llm/google"
+	"github.com/EPecherkin/catty-counting/llm/openai"
 	"github.com/EPecherkin/catty-counting/logger"
 	"github.com/EPecherkin/catty-counting/telegram"
 	"github.com/pkg/errors"
 	"gocloud.dev/blob"
+	_ "gocloud.dev/blob/fileblob"
 )
 
 func main() {
@@ -45,7 +46,7 @@ func main() {
 	}
 }
 
-func initialize(ctx context.Context) (*slog.Logger, *blob.Bucket, *llm.Client, error) {
+func initialize(ctx context.Context) (*slog.Logger, *blob.Bucket, llm.Client, error) {
 	lgr := logger.NewLogger()
 
 	if err := config.Init(); err != nil {
@@ -57,7 +58,7 @@ func initialize(ctx context.Context) (*slog.Logger, *blob.Bucket, *llm.Client, e
 		return lgr, nil, nil, fmt.Errorf("initializing file blob: %w", errors.WithStack(err))
 	}
 
-	llmClient, err := google.CreateClient(ctx, lgr)
+	llmClient, err := openai.CreateClient(ctx, lgr)
 	if err != nil {
 		return lgr, nil, nil, fmt.Errorf("", err)
 	}

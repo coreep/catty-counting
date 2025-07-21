@@ -6,7 +6,7 @@ import (
 )
 
 type Client interface {
-	CreateChat(ctx context.Context, lgr *slog.Logger) (*Chat, error)
+	CreateChat(ctx context.Context, lgr *slog.Logger) (Chat, error)
 }
 
 type Chat interface {
