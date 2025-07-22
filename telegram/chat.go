@@ -55,15 +55,11 @@ func (chat *Chat) GoChat(ctx context.Context) {
 	// todo. select listeting to done to clean up chat.updates
 	for {
 		select {
-		case update, ok := <-chat.updates:
-			if !ok {
-				chat.deps.lgr.Debug("chat.updates cancelled")
-				return
-			}
+		case update := <-chat.updates:
 			chat.lastActiveAt = time.Now()
 			chat.deps.lgr.Debug("chat received update")
 			if chat.response != nil {
-				chat.deps.lgr.Info("chat received update during another excahnge. Interrupting...")
+				chat.deps.lgr.Info("chat received update during another exchange. Interrupting...")
 				chat.response.close()
 			}
 			responseCtx, cancel := context.WithCancel(ctx)

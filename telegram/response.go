@@ -67,8 +67,21 @@ func (resp *Response) GoRespond(ctx context.Context) {
 func (resp *Response) handleMessage(ctx context.Context) error {
 	message := resp.update.Message
 	// .toai todo[Save user message in DB]
+	fmt.Printf("%+v \n", message)
+	return nil
 
-	responseMessage, err := resp.sendMessage(message.Chat.ID, "Thinking...")
+	if message.Audio != nil || len(message.Entities) > 0 || message.Voice != nil || message.Video != nil || message.VideoNote != nil || message.Sticker != nil || message.Contact != nil || message.Location != nil || message.Venue != nil || message.Poll != nil || message.Dice != nil || message.Invoice != nil {
+		resp.deps.lgr.With("message", message).Warn("received unusual content")
+		if _, err := resp.sendMessage("Sorry, I don't yet know how to work with that. Send me a text message or a photo."); err != nil {
+			return fmt.Errorf("sending response to unknown content type: %w", err)
+		}
+		return nil
+	}
+
+	if message.Document != nil {
+
+	}
+	responseMessage, err := resp.sendMessage("Thinking...")
 	if err != nil {
 		return fmt.Errorf("sending initial response message: %w", err)
 	}
@@ -77,6 +90,7 @@ func (resp *Response) handleMessage(ctx context.Context) error {
 	errorChan := make(chan error)
 	defer close(errorChan)
 	go resp.deps.llmChat.GoTalk(ctx, message.Text, responseChan, errorChan)
+
 	var responseText string
 	var sentText string
 
@@ -126,7 +140,8 @@ func (resp *Response) handleMessage(ctx context.Context) error {
 	}
 }
 
-func (resp *Response) sendMessage(chatID int64, text string) (*tgbotapi.Message, error) {
+func (resp *Response) sendMessage(text string) (*tgbotapi.Message, error) {
+	chatID := resp.update.Message.Chat.ID
 	attrs := tgbotapi.NewMessage(chatID, text)
 	message, err := resp.deps.tgbot.Send(attrs)
 	if err != nil {
