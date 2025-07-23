@@ -25,8 +25,10 @@ profile.cov
 go.work
 go.work.sum
 
-# env file
+# Project specific files
 .env
+tmp/
+uploads/
 
 # Editor/IDE
 # .idea/

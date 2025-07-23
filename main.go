@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/EPecherkin/catty-counting/config"
+	"github.com/EPecherkin/catty-counting/db"
 	"github.com/EPecherkin/catty-counting/llm"
 	"github.com/EPecherkin/catty-counting/llm/openai"
 	"github.com/EPecherkin/catty-counting/logger"
@@ -14,6 +15,7 @@ import (
 	"github.com/pkg/errors"
 	"gocloud.dev/blob"
 	_ "gocloud.dev/blob/fileblob"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -24,7 +26,7 @@ func main() {
 	}()
 
 	ctx := context.Background()
-	lgr, fileBucket, llmClient, err := initialize(ctx)
+	lgr, dbc, fileBucket, llmClient, err := initialize(ctx)
 	if err != nil {
 		lgr.With(logger.ERROR, err).Error("Initialization failed")
 		os.Exit(1)
@@ -46,21 +48,26 @@ func main() {
 	}
 }
 
-func initialize(ctx context.Context) (*slog.Logger, *blob.Bucket, llm.Client, error) {
-	lgr := logger.NewLogger()
+func initialize(ctx context.Context) (lgr *slog.Logger, databaseConnection *gorm.DB, filesBucket *blob.Bucket, _ llm.Client, _ error) {
+	lgr = logger.NewLogger()
 
 	if err := config.Init(); err != nil {
-		return lgr, nil, nil, fmt.Errorf("initializing config: %w", err)
+		return lgr, nil, nil, nil, fmt.Errorf("initializing config: %w", err)
+	}
+
+	dbc, err := db.NewConnection()
+	if err != nil {
+		return lgr, nil, nil, nil, fmt.Errorf("initializing database connection: %w", err)
 	}
 
 	fileBucket, err := blob.OpenBucket(ctx, config.FileBucket())
 	if err != nil {
-		return lgr, nil, nil, fmt.Errorf("initializing file blob: %w", errors.WithStack(err))
+		return lgr, nil, nil, nil, fmt.Errorf("initializing file blob: %w", errors.WithStack(err))
 	}
 
 	llmClient, err := openai.CreateClient(ctx, lgr)
 	if err != nil {
-		return lgr, nil, nil, fmt.Errorf("", err)
+		return lgr, nil, nil, nil, fmt.Errorf("", err)
 	}
-	return lgr, fileBucket, llmClient, nil
+	return lgr, dbc, fileBucket, llmClient, nil
 }
