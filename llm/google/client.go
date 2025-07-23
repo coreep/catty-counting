@@ -6,7 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/EPecherkin/catty-counting/config"
-	"github.com/EPecherkin/catty-counting/llm"
+	"github.com/EPecherkin/catty-counting/llm/base"
 	"github.com/pkg/errors"
 	"google.golang.org/genai"
 )
@@ -18,7 +18,7 @@ type Client struct {
 	lgr     *slog.Logger
 }
 
-func CreateClient(ctx context.Context, lgr *slog.Logger) (llm.Client, error) {
+func CreateClient(ctx context.Context, lgr *slog.Logger) (base.Client, error) {
 	lgr.Debug("Creating new LLM Gemini Client")
 	apiKey := config.GeminiApiKey()
 
@@ -30,7 +30,7 @@ func CreateClient(ctx context.Context, lgr *slog.Logger) (llm.Client, error) {
 	return &Client{gClient: gClient, lgr: lgr}, nil
 }
 
-func (client *Client) CreateChat(ctx context.Context, lgr *slog.Logger) (llm.Chat, error) {
+func (client *Client) CreateChat(ctx context.Context, lgr *slog.Logger) (base.Chat, error) {
 	config := &genai.GenerateContentConfig{SystemInstruction: &genai.Content{Parts: []*genai.Part{{Text: systemPrompt}}}}
 	gemini, err := client.gClient.Chats.Create(ctx, model, config, nil)
 	if err != nil {

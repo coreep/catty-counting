@@ -22,12 +22,12 @@ const (
 type ResponseDeps struct {
 	lgr        *slog.Logger
 	tgbot      *tgbotapi.BotAPI
-	fileBucket *blob.Bucket
+	files *blob.Bucket
 	llmChat    llm.Chat
 }
 
-func NewResponseDeps(lgr *slog.Logger, tgbot *tgbotapi.BotAPI, fileBucket *blob.Bucket, llmChat llm.Chat) *ResponseDeps {
-	return &ResponseDeps{lgr: lgr, tgbot: tgbot, fileBucket: fileBucket, llmChat: llmChat}
+func NewResponseDeps(lgr *slog.Logger, tgbot *tgbotapi.BotAPI, files *blob.Bucket, llmChat llm.Chat) *ResponseDeps {
+	return &ResponseDeps{lgr: lgr, tgbot: tgbot, files: files, llmChat: llmChat}
 }
 
 type Response struct {

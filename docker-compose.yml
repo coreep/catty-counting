@@ -12,3 +12,4 @@ services:
       - "${DB_PORT}:5432"
     volumes:
       - ./tmp/db/:/var/lib/postgresql/data
+    # command: "-c logging_collector=on -c log_statement=all"

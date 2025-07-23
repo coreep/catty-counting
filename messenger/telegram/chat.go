@@ -16,8 +16,8 @@ type ChatDeps struct {
 	BotDeps
 }
 
-func NewChatDeps(lgr *slog.Logger, tgbot *tgbotapi.BotAPI, fileBucket *blob.Bucket, llmClient llm.Client) *ChatDeps {
-	return &ChatDeps{tgbot: tgbot, BotDeps: BotDeps{lgr: lgr, fileBucket: fileBucket, llmClient: llmClient}}
+func NewChatDeps(lgr *slog.Logger, tgbot *tgbotapi.BotAPI, files *blob.Bucket, llmc llm.Client) *ChatDeps {
+	return &ChatDeps{tgbot: tgbot, BotDeps: BotDeps{lgr: lgr, files: files, llmc: llmc}}
 }
 
 type Chat struct {
@@ -45,7 +45,7 @@ func (chat *Chat) GoChat(ctx context.Context) {
 		chat.close()
 	}()
 
-	llmChat, err := chat.deps.llmClient.CreateChat(ctx, chat.deps.lgr)
+	llmChat, err := chat.deps.llmc.CreateChat(ctx, chat.deps.lgr)
 	if err != nil {
 		chat.deps.lgr.With(logger.ERROR, err).Error("Failed to start llm chatting")
 		return
@@ -67,7 +67,7 @@ func (chat *Chat) GoChat(ctx context.Context) {
 				chat.response = nil
 				cancel()
 			}
-			response := NewResponse(update, closeF, NewResponseDeps(chat.deps.lgr, chat.deps.tgbot, chat.deps.fileBucket, chat.llmChat))
+			response := NewResponse(update, closeF, NewResponseDeps(chat.deps.lgr, chat.deps.tgbot, chat.deps.files, chat.llmChat))
 			go response.GoRespond(responseCtx)
 		case <-ctx.Done():
 			chat.deps.lgr.Debug("exchange interrupted")

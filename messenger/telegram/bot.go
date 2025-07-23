@@ -21,12 +21,12 @@ const (
 
 type BotDeps struct {
 	lgr        *slog.Logger
-	fileBucket *blob.Bucket
-	llmClient  llm.Client
+	files *blob.Bucket
+	llmc  llm.Client
 }
 
-func NewBotDeps(lgr *slog.Logger, fileBucket *blob.Bucket, llmClient llm.Client) *BotDeps {
-	return &BotDeps{lgr: lgr, fileBucket: fileBucket, llmClient: llmClient}
+func NewBotDeps(lgr *slog.Logger, files *blob.Bucket, llmc llm.Client) *BotDeps {
+	return &BotDeps{lgr: lgr, files: files, llmc: llmc}
 }
 
 type Bot struct {
@@ -89,7 +89,7 @@ func (bot *Bot) chatFor(ctx context.Context, userID int64) *Chat {
 			bot.chats[userID] = nil
 			cancel()
 		}
-		chat = NewChat(userID, closeF, NewChatDeps(bot.deps.lgr, bot.tgbot, bot.deps.fileBucket, bot.deps.llmClient))
+		chat = NewChat(userID, closeF, NewChatDeps(bot.deps.lgr, bot.tgbot, bot.deps.files, bot.deps.llmc))
 		bot.chats[userID] = chat
 		go chat.GoChat(chatCtx)
 	}
