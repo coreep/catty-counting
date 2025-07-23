@@ -23,13 +23,15 @@ func NewServerDeps(lgr *slog.Logger, dbc *gorm.DB, files *blob.Bucket) *ServerDe
 }
 
 type Server struct {
-	llmc llm.Client
 	msgc messenger.Client
+	llmc llm.Client
 	deps *ServerDeps
 }
 
-func NewServer(llmc llm.Client, msgc messenger.Client, deps *ServerDeps) *Server {
+func NewServer(msgc messenger.Client, llmc llm.Client, deps *ServerDeps) *Server {
 	return &Server{
+		msgc: msgc,
+		llmc: llmc,
 		deps: deps,
 	}
 }
