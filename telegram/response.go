@@ -66,7 +66,6 @@ func (resp *Response) GoRespond(ctx context.Context) {
 
 func (resp *Response) handleMessage(ctx context.Context) error {
 	message := resp.update.Message
-	// .toai todo[Save user message in DB]
 	fmt.Printf("%+v \n", message)
 	return nil
 

@@ -1,17 +1,21 @@
 todo[
-0. Add to the project gorm as our DB orm.
+0. create a docker-compose.yml . Configure a new db container there, with latest version of posrgresql. Configure it to load ENV variables from .env file. Add necessary ENV variables to .env file.
+
+0. Add to the project gorm as our DB orm. It should be configured to work with postgresql. Take connection config from ENV variables.
 
 0. Create next structs and corresponding migrations for them:
 
-* User. Primary key: id. Columns: telegramID int64, created_at, updated_at. Has many chats. Has many messages.
-* Chat. Primary key: id. Columns: user_id, created_at, updated_at, context(string). Belongs to user. Has many messages.
-* Message. Primary key: id. Columns: user_id, chat_id, created_at, updated_at, text.
+* user. Primary key: id. Columns: telegram_id int64, created_at timestamp, updated_at timestamp. Has many chats. Has many messages.
+* chat. Primary key: id. Columns: user_id, created_at timestamp, updated_at timestamp, summary text. Belongs to user. Has many messages.
+* message. Primary key: id. Columns: user_id, chat_id, created_at timestamp, updated_at timestamp, text text. Belongds to user. Belongds to chat. Has many files
+* file. Promary key: id. Columns: message_id, created_at timestamp, updated_at timestamp, size bigint, mimetype varchar(256), original_name varchar(1024), summary text. Belongs to message. Has one exposed_files
+* exposed_file. Primary key: id. Columns: file_id, key varchar(256). Belongs to file.
 
 Put structs in file named `models.go`. Store migrations at folder `migrations/`
 
 0. Relations between tables should have indexes for faster queries.
 
-0. Create a file named `connection.go` with a `func NewConnection() *gorm.DB`. It should create a new coonection to PSQL datatabase. You should take credentials from ENV variables: DB_USERNAME, DB_PASSWORD, DB_NAME, DB_HOSTNAME, DB_PORT. It should create DB if it is missing and run migrations of necessary.
+0. Create a file named `connection.go` with a `func NewConnection() *gorm.DB`. It should create a new coonection to PSQL datatabase. You should take credentials from ENV variables: DB_USERNAME, DB_PASSWORD, DB_NAME, DB_HOSTNAME, DB_PORT. It should create DB if it is missing and run migrations if necessary.
 ]
 
 
