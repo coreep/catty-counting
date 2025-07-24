@@ -17,12 +17,15 @@ type Chat struct {
 }
 
 func newChat(oClient *openai.Client, lgr *slog.Logger) *Chat {
+	lgr = lgr.With(logger.CALLER, "openai chat")
+	lgr.Debug("Creating openai chat")
 	return &Chat{oClient: oClient, lgr: lgr}
 }
 
 const systemPrompt = `You are an accounting helping assistant, which is capable of processing docs, receipts, building statistics and giving advices.`
 
 func (chat *Chat) GoTalk(ctx context.Context, message string, responseChan chan<- string, errorChan chan<- error) {
+	chat.lgr.Debug("")
 	defer func() {
 		close(responseChan)
 		if err := recover(); err != nil {

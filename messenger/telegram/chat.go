@@ -70,7 +70,7 @@ func (chat *Chat) GoChat(ctx context.Context) {
 			response := NewResponse(update, closeF, NewResponseDeps(chat.deps.lgr, chat.deps.tgbot, chat.deps.files, chat.llmChat))
 			go response.GoRespond(responseCtx)
 		case <-ctx.Done():
-			chat.deps.lgr.Debug("exchange interrupted")
+			chat.deps.lgr.Info("exchange interrupted")
 			close(chat.updates)
 			return
 		}

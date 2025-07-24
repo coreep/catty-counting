@@ -6,6 +6,7 @@ import (
 
 	"github.com/EPecherkin/catty-counting/config"
 	"github.com/EPecherkin/catty-counting/llm/base"
+	"github.com/EPecherkin/catty-counting/logger"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 )
@@ -16,7 +17,8 @@ type Client struct {
 }
 
 func CreateClient(ctx context.Context, lgr *slog.Logger) (base.Client, error) {
-	lgr.Debug("Creating new LLM OpenAI Client")
+	lgr = lgr.With(logger.CALLER, "openai client")
+	lgr.Debug("Creating openai client")
 	apiKey := config.OpenAiApiKey()
 	oClient := openai.NewClient(option.WithAPIKey(apiKey))
 

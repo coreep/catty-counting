@@ -11,6 +11,7 @@ import (
 )
 
 const ERROR = "error"
+const CALLER = "caller"
 const TELEGRAM_USER_ID = "telegram_user_id"
 const TELEGRAM_UPDATE_ID = "telegram_update_id"
 const TELEGRAM_CHAT_ID = "telegram_chat_id"

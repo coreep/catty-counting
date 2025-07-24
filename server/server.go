@@ -3,11 +3,11 @@ package server
 import (
 	"context"
 	"log/slog"
-	"os"
 
 	"github.com/EPecherkin/catty-counting/llm"
 	"github.com/EPecherkin/catty-counting/logger"
 	"github.com/EPecherkin/catty-counting/messenger"
+	"github.com/EPecherkin/catty-counting/messenger/base"
 	"gocloud.dev/blob"
 	"gorm.io/gorm"
 )
@@ -29,6 +29,8 @@ type Server struct {
 }
 
 func NewServer(msgc messenger.Client, llmc llm.Client, deps *ServerDeps) *Server {
+	deps.lgr = deps.lgr.With(logger.CALLER, "server")
+	deps.lgr.Debug("Creating server")
 	return &Server{
 		msgc: msgc,
 		llmc: llmc,
@@ -38,13 +40,18 @@ func NewServer(msgc messenger.Client, llmc llm.Client, deps *ServerDeps) *Server
 
 func (server *Server) Run(ctx context.Context) {
 	server.deps.lgr.Debug("Running server")
-	err := bot.setup()
-	if err != nil {
-		bot.deps.lgr.With(logger.ERROR, err).Error("Failed to Bot")
-		os.Exit(1)
+
+	server.msgc.GoTalk(ctx)
+	for {
+		select {
+		case messageRequest := <-server.msgc.Messages():
+			go server.goHandleMessageRequest(ctx, messageRequest)
+		case <-ctx.Done():
+			server.deps.lgr.Info("Server message wait interrupted")
+		}
 	}
+}
 
-	bot.handleUpdates(ctx)
+func (server *Server) goHandleMessageRequest(ctx context.Context, messageRequest *base.MessageRequest) {
 
-	telegram.NewBot(telegram.NewBotDeps(lgr, dbc))
 }

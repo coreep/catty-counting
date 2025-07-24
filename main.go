@@ -68,6 +68,6 @@ func initialize(ctx context.Context) (lgr *slog.Logger, databaseConnection *gorm
 		return lgr, nil, nil, nil, nil, fmt.Errorf("", err)
 	}
 
-	msgc, err := messenger.CreateTelegramClient(ctx, lgr)
+	msgc, err := messenger.CreateTelegramClient(lgr, dbc, files)
 	return lgr, dbc, files, llmc, msgc, nil
 }

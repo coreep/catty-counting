@@ -17,6 +17,7 @@ type Chat struct {
 }
 
 func newChat(gChat *genai.Chat, lgr *slog.Logger) *Chat {
+	lgr = lgr.With(logger.CALLER, "gemini chat")
 	return &Chat{gChat: gChat, lgr: lgr}
 }
 
