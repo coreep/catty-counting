@@ -71,6 +71,9 @@ func (client *Client) chatFor(ctx context.Context, userID int64) *Chat {
 	if !ok || chat == nil {
 		chatCtx, cancel := context.WithCancel(ctx)
 		closeF := func() {
+			if client.chats[userID] != nil {
+				client.chats[userID].deps.Logger.Debug("Closing chat")
+			}
 			client.chats[userID] = nil
 			cancel()
 		}

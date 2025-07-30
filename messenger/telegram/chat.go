@@ -37,7 +37,7 @@ func NewChat(userID int64, closeF func(), client *Client, deps deps.Deps) *Chat 
 }
 
 func (chat *Chat) GoReceiveMessages(ctx context.Context) {
-	chat.deps.Logger.Debug("message builder is accumulating")
+	chat.deps.Logger.Debug("receiving updates and accumulating messages")
 	defer func() {
 		if err := recover(); err != nil {
 			chat.deps.Logger.With(logger.ERROR, err).Error("panic in GoReceiveMessages")
@@ -63,6 +63,10 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 	chat.user = user
 
 	timeouter := time.NewTicker(WAIT_FOR_MESSAGE)
+	refreshTimeouter := func() {
+		timeouter.Stop()
+		timeouter = time.NewTicker(WAIT_FOR_MESSAGE)
+	}
 	defer func() { timeouter.Stop() }()
 
 	var message *db.Message
@@ -95,7 +99,7 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 			}
 
 			if message == nil {
-				chat.deps.Logger.Debug("received new update")
+				chat.deps.Logger.Debug("building new message")
 				message = &db.Message{UserID: chat.user.ID, TelegramIDs: []int{tMessage.MessageID}}
 				if err := chat.deps.DBC.Create(message).Error; err != nil {
 					chat.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Error("Failed to create message")
@@ -103,7 +107,7 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 				}
 				chat.deps.Logger = chat.deps.Logger.With(logger.MESSAGE_ID, message.ID)
 			} else {
-				chat.deps.Logger.Debug("received extra update for existing message")
+				chat.deps.Logger.Debug("appending to message")
 				message.TelegramIDs = append(message.TelegramIDs, tMessage.MessageID)
 			}
 
@@ -151,13 +155,17 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 				}
 			}
 
-			timeouter.Stop()
-			timeouter = time.NewTicker(WAIT_FOR_MESSAGE)
+			refreshTimeouter()
 		case <-timeouter.C:
+			refreshTimeouter()
+			if message == nil {
+				continue
+			}
 			chat.deps.Logger.Debug("Message built. Initiating response")
 			responseCtx, cancel := context.WithCancel(ctx)
 			closeF := func() {
-				chat.response = nil
+				chat.responder.deps.Logger.Debug("closing responder")
+				chat.responder = nil
 				cancel()
 			}
 			responder := NewResponder(closeF, chat, chat.deps)
@@ -165,7 +173,7 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 			go responder.GoRespond(responseCtx)
 			responder.response <- preResponse
 			chat.client.messages <- base.NewMessageRequest(*message, responder.response)
-			return
+			message = nil
 		}
 	}
 }
