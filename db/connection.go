@@ -7,20 +7,13 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"gorm.io/driver/postgres"
+	// "gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
 func NewConnection() (*gorm.DB, error) {
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
-		os.Getenv("DB_HOSTNAME"),
-		os.Getenv("DB_USERNAME"),
-		os.Getenv("DB_PASSWORD"),
-		os.Getenv("DB_NAME"),
-		os.Getenv("DB_PORT"),
-	)
-
 	// TODO: need JSON format
 	dblgr := logger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
@@ -33,7 +26,17 @@ func NewConnection() (*gorm.DB, error) {
 		},
 	)
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: dblgr})
+	// dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
+	// 	os.Getenv("DB_HOSTNAME"),
+	// 	os.Getenv("DB_USERNAME"),
+	// 	os.Getenv("DB_PASSWORD"),
+	// 	os.Getenv("DB_NAME"),
+	// 	os.Getenv("DB_PORT"),
+	// )
+	// db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: dblgr})
+
+	db, err := gorm.Open(sqlite.Open("tmp/dev.sqlite3"), &gorm.Config{Logger: dblgr})
+
 	if err != nil {
 		return nil, fmt.Errorf("connecting to database: %w", errors.WithStack(err))
 	}

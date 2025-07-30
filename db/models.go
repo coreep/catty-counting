@@ -26,7 +26,7 @@ type Message struct {
 	UserID      uint   `gorm:"index"`
 	ChatID      uint   `gorm:"index"`
 	Text        string `gorm:"type:text"`
-	TelegramIDs []int
+	TelegramIDs []int  `gorm:"serializer:json"`
 	User        User
 	Chat        Chat
 	Files       []File
