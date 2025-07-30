@@ -7,36 +7,45 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/EPecherkin/catty-counting/config"
 	"github.com/pkg/errors"
 )
 
-const ERROR = "error"
-const CALLER = "caller"
-const MESSAGE_ID = "telegram_message_id"
-const TELEGRAM_USER_ID = "telegram_user_id"
-const TELEGRAM_UPDATE_ID = "telegram_update_id"
-const TELEGRAM_CHAT_ID = "telegram_chat_id"
-const TELEGRAM_MESSAGE_ID = "telegram_message_id"
-const TELEGRAM_DOCUMENT_ID = "telegram_document_id"
-const TELEGRAM_PHOTO_ID = "telegram_photo_id"
+var level string
+
+const (
+	ERROR                = "error"
+	CALLER               = "caller"
+	MESSAGE_ID           = "telegram_message_id"
+	TELEGRAM_USER_ID     = "telegram_user_id"
+	TELEGRAM_UPDATE_ID   = "telegram_update_id"
+	TELEGRAM_CHAT_ID     = "telegram_chat_id"
+	TELEGRAM_MESSAGE_ID  = "telegram_message_id"
+	TELEGRAM_DOCUMENT_ID = "telegram_document_id"
+	TELEGRAM_PHOTO_ID    = "telegram_photo_id"
+)
 
 // Build a logger that prints error stacktrace
 // Inspired by https://stackoverflow.com/questions/77304845/how-to-log-errors-with-log-slog
 func NewLogger() *slog.Logger {
-	var logLevel slog.Leveler
-	if config.LogLevel() == "debug" {
+	level = os.Getenv("LOG_LEVEL")
+	fmt.Println("level " + level)
+	logLevel := slog.LevelInfo
+	if level == "debug" {
 		logLevel = slog.LevelDebug
-	} else {
-		logLevel = slog.LevelInfo
 	}
+
 	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		ReplaceAttr: replaceAttr,
-		Level: logLevel,
+		Level:       logLevel,
 	})
 	logger := slog.New(handler)
+	logger.Info(fmt.Sprintf("Logging level: %v", logLevel))
 	slog.SetDefault(logger)
 	return logger
+}
+
+func IsDebug() bool {
+	return level == "debug"
 }
 
 func replaceAttr(groups []string, a slog.Attr) slog.Attr {

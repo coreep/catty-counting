@@ -35,7 +35,7 @@ func CreateClient(deps deps.Deps) (base.Client, error) {
 	}
 	deps.Logger.Info("Authorized on account " + tgbot.Self.UserName)
 
-	if config.LogLevel() == "debug" {
+	if logger.IsDebug() {
 		tgbot.Debug = true
 	}
 

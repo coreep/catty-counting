@@ -9,7 +9,6 @@ import (
 )
 
 var (
-	logLevel      string
 	fileBucket    string
 	geminiApiKey  string
 	openAiApiKey  string
@@ -19,11 +18,6 @@ var (
 func Init() error {
 	if err := godotenv.Load(); err != nil {
 		return fmt.Errorf("loading .env: %w", errors.WithStack(err))
-	}
-
-	logLevel = os.Getenv("LOG_LEVEL")
-	if logLevel == "" {
-		logLevel = "info"
 	}
 
 	checkAndSet := map[string]*string{
@@ -48,10 +42,6 @@ func ensurePresent(varname string, varvar *string) error {
 	}
 	*varvar = varval
 	return nil
-}
-
-func LogLevel() string {
-	return logLevel
 }
 
 func FileBucket() string {

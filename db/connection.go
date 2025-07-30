@@ -6,20 +6,26 @@ import (
 	"os"
 	"time"
 
+	"github.com/EPecherkin/catty-counting/logger"
 	"github.com/pkg/errors"
+
 	// "gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 func NewConnection() (*gorm.DB, error) {
 	// TODO: need JSON format
-	dblgr := logger.New(
+	logLevel := gormlogger.Warn
+	if logger.IsDebug() {
+		logLevel = gormlogger.Info
+	}
+	dblgr := gormlogger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
-		logger.Config{
+		gormlogger.Config{
 			SlowThreshold:             time.Second,
-			LogLevel:                  logger.Warn,
+			LogLevel:                  logLevel,
 			IgnoreRecordNotFoundError: true,
 			// ParameterizedQueries:      true,          // Don't include params in the SQL log
 			// Colorful:                  false,         // Disable color
