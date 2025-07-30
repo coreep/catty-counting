@@ -3,15 +3,13 @@ package telegram
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/EPecherkin/catty-counting/config"
+	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/logger"
 	"github.com/EPecherkin/catty-counting/messenger/base"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
-	"gocloud.dev/blob"
-	"gorm.io/gorm"
 )
 
 const (
@@ -24,30 +22,28 @@ type Client struct {
 	chats    map[int64]*Chat
 	messages chan *base.MessageRequest
 
-	lgr   *slog.Logger
-	dbc   *gorm.DB
-	files *blob.Bucket
+	deps deps.Deps
 }
 
-func CreateClient(lgr *slog.Logger, dbc *gorm.DB, files *blob.Bucket) (base.Client, error) {
-	lgr = lgr.With(logger.CALLER, "telegram client")
-	lgr.Debug("Creating telegram client")
+func CreateClient(deps deps.Deps) (base.Client, error) {
+	deps.Logger = deps.Logger.With(logger.CALLER, "telegram client")
+	deps.Logger.Debug("Creating telegram client")
 	token := config.TelegramToken()
 	tgbot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		return nil, fmt.Errorf("creating telegram bot client: %w", errors.WithStack(err))
 	}
-	lgr.Info("Authorized on account " + tgbot.Self.UserName)
+	deps.Logger.Info("Authorized on account " + tgbot.Self.UserName)
 
 	if config.LogLevel() == "debug" {
 		tgbot.Debug = true
 	}
 
-	return &Client{tgbot: tgbot, messages: make(chan *base.MessageRequest), lgr: lgr, dbc: dbc, files: files}, nil
+	return &Client{tgbot: tgbot, messages: make(chan *base.MessageRequest), deps: deps}, nil
 }
 
 func (client *Client) GoTalk(ctx context.Context) {
-	client.lgr.Debug("Running client")
+	client.deps.Logger.Debug("Running client")
 
 	client.handleUpdates(ctx)
 }
@@ -57,13 +53,13 @@ func (client *Client) Messages() <-chan *base.MessageRequest {
 }
 
 func (client *Client) handleUpdates(ctx context.Context) {
-	client.lgr.With("timeout", TIMEOUT).With("offset", OFFSET).Info("listening for updates")
+	client.deps.Logger.With("timeout", TIMEOUT).With("offset", OFFSET).Info("listening for updates")
 	updateConfig := tgbotapi.NewUpdate(0)
 	updateConfig.Timeout = TIMEOUT
 	updates := client.tgbot.GetUpdatesChan(updateConfig)
 
 	for update := range updates {
-		client.lgr.With("update", update).Debug("bot received update")
+		client.deps.Logger.With("update", update).Debug("bot received update")
 
 		chat := client.chatFor(ctx, update.Message.From.ID)
 		chat.updates <- update

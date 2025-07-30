@@ -2,35 +2,24 @@ package server
 
 import (
 	"context"
-	"log/slog"
 
+	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/llm"
 	"github.com/EPecherkin/catty-counting/logger"
 	"github.com/EPecherkin/catty-counting/messenger"
 	"github.com/EPecherkin/catty-counting/messenger/base"
-	"gocloud.dev/blob"
-	"gorm.io/gorm"
 )
-
-type ServerDeps struct {
-	lgr   *slog.Logger
-	dbc   *gorm.DB
-	files *blob.Bucket
-}
-
-func NewServerDeps(lgr *slog.Logger, dbc *gorm.DB, files *blob.Bucket) *ServerDeps {
-	return &ServerDeps{lgr: lgr, dbc: dbc, files: files}
-}
 
 type Server struct {
 	msgc messenger.Client
 	llmc llm.Client
-	deps *ServerDeps
+
+	deps deps.Deps
 }
 
-func NewServer(msgc messenger.Client, llmc llm.Client, deps *ServerDeps) *Server {
-	deps.lgr = deps.lgr.With(logger.CALLER, "server")
-	deps.lgr.Debug("Creating server")
+func NewServer(msgc messenger.Client, llmc llm.Client, deps deps.Deps) *Server {
+	deps.Logger = deps.Logger.With(logger.CALLER, "server")
+	deps.Logger.Debug("Creating server")
 	return &Server{
 		msgc: msgc,
 		llmc: llmc,
@@ -39,7 +28,7 @@ func NewServer(msgc messenger.Client, llmc llm.Client, deps *ServerDeps) *Server
 }
 
 func (server *Server) Run(ctx context.Context) {
-	server.deps.lgr.Debug("Running server")
+	server.deps.Logger.Debug("Running server")
 
 	server.msgc.GoTalk(ctx)
 	for {
@@ -47,7 +36,7 @@ func (server *Server) Run(ctx context.Context) {
 		case messageRequest := <-server.msgc.Messages():
 			go server.goHandleMessageRequest(ctx, messageRequest)
 		case <-ctx.Done():
-			server.deps.lgr.Info("Server message wait interrupted")
+			server.deps.Logger.Info("Server message wait interrupted")
 		}
 	}
 }

@@ -2,10 +2,10 @@ package telegram
 
 import (
 	"context"
-	"log/slog"
 	"time"
 
 	"github.com/EPecherkin/catty-counting/db"
+	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/logger"
 	"github.com/EPecherkin/catty-counting/messenger/base"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -28,34 +28,34 @@ type Chat struct {
 
 	responder *Responder
 
-	lgr *slog.Logger
+	deps deps.Deps
 }
 
-func NewChat(userID int64, closeF func(), client *Client) *Chat {
-	lgr := client.lgr.With(logger.CALLER, "messenger.telegram.Chat").With(logger.TELEGRAM_USER_ID, userID)
-	return &Chat{telegramUserID: userID, close: closeF, client: client, updates: make(chan tgbotapi.Update), lgr: lgr}
+func NewChat(userID int64, closeF func(), client *Client, deps deps.Deps) *Chat {
+	deps.Logger = deps.Logger.With(logger.CALLER, "messenger.telegram.Chat").With(logger.TELEGRAM_USER_ID, userID)
+	return &Chat{telegramUserID: userID, close: closeF, client: client, updates: make(chan tgbotapi.Update), deps: deps}
 }
 
 func (chat *Chat) GoReceiveMessages(ctx context.Context) {
-	chat.lgr.Debug("message builder is accumulating")
+	chat.deps.Logger.Debug("message builder is accumulating")
 	defer func() {
 		if err := recover(); err != nil {
-			chat.lgr.With(logger.ERROR, err).Error("panic in GoReceiveMessages")
+			chat.deps.Logger.With(logger.ERROR, err).Error("panic in GoReceiveMessages")
 		}
 		chat.close()
 		close(chat.updates)
 	}()
 
 	var user db.User
-	if err := chat.client.dbc.Find(user, db.User{TelegramID: chat.telegramUserID}).Error; err != nil {
+	if err := chat.deps.DBC.Find(user, db.User{TelegramID: chat.telegramUserID}).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			chat.lgr.With(logger.ERROR, err).Error("Failed to query user")
+			chat.deps.Logger.With(logger.ERROR, err).Error("Failed to query user")
 			return
 		} else {
-			chat.lgr.Debug("Creating new user from telegram")
+			chat.deps.Logger.Debug("Creating new user from telegram")
 			user = db.User{TelegramID: chat.telegramUserID}
-			if err := chat.client.dbc.Create(&user).Error; err != nil {
-				chat.lgr.With(logger.ERROR, err).Error("Failed to create user")
+			if err := chat.deps.DBC.Create(&user).Error; err != nil {
+				chat.deps.Logger.With(logger.ERROR, err).Error("Failed to create user")
 				return
 			}
 		}
@@ -71,7 +71,7 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			lgr := chat.lgr
+			lgr := chat.deps.Logger
 			if err := ctx.Err(); err != nil {
 				lgr = lgr.With(logger.ERROR, errors.WithStack(err))
 			}
@@ -79,34 +79,34 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 			return
 		case update := <-chat.updates:
 			tMessage := update.Message
-			chat.lgr = chat.lgr.
+			chat.deps.Logger = chat.deps.Logger.
 				With(logger.TELEGRAM_UPDATE_ID, update.UpdateID).
 				With(logger.TELEGRAM_CHAT_ID, tMessage.Chat.ID).
 				With(logger.TELEGRAM_MESSAGE_ID, tMessage.MessageID)
 
 			if tMessage.Audio != nil || len(tMessage.Entities) > 0 || tMessage.Voice != nil || tMessage.Video != nil || tMessage.VideoNote != nil || tMessage.Sticker != nil || tMessage.Contact != nil || tMessage.Location != nil || tMessage.Venue != nil || tMessage.Poll != nil || tMessage.Dice != nil || tMessage.Invoice != nil {
-				chat.lgr.With("update", update).Warn("received unusual content")
+				chat.deps.Logger.With("update", update).Warn("received unusual content")
 				preResponse = "Sorry, I don't yet know how to work with that, but I'll do my best."
 			}
 
 			if chat.responder != nil {
-				chat.lgr.Info("chat received update during another exchange. Interrupting...")
+				chat.deps.Logger.Info("chat received update during another exchange. Interrupting...")
 				chat.responder.close()
 			}
 			if message == nil {
-				chat.lgr.Debug("received new update")
+				chat.deps.Logger.Debug("received new update")
 				message = &db.Message{TelegramIDs: []int{tMessage.MessageID}}
-				if err := chat.client.dbc.Create(message).Error; err != nil {
-					chat.lgr.With(logger.ERROR, err).Error("Failed to create message")
+				if err := chat.deps.DBC.Create(message).Error; err != nil {
+					chat.deps.Logger.With(logger.ERROR, err).Error("Failed to create message")
 				}
-				chat.lgr = chat.lgr.With(logger.MESSAGE_ID, message.ID)
+				chat.deps.Logger = chat.deps.Logger.With(logger.MESSAGE_ID, message.ID)
 			} else {
-				chat.lgr.Debug("received extra update for existing message")
+				chat.deps.Logger.Debug("received extra update for existing message")
 				message.TelegramIDs = append(message.TelegramIDs, tMessage.MessageID)
 			}
 			message.Text += tMessage.Text
-			if err := chat.client.dbc.Save(message).Error; err != nil {
-				chat.lgr.With(logger.ERROR, err).Error("Failed to save message")
+			if err := chat.deps.DBC.Save(message).Error; err != nil {
+				chat.deps.Logger.With(logger.ERROR, err).Error("Failed to save message")
 			}
 			if tMessage.Document != nil {
 				tMessage.Document.FileID
@@ -117,7 +117,7 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 			timeouter.Stop()
 			timeouter = time.NewTicker(WAIT_FOR_MESSAGE)
 		case <-timeouter.C:
-			chat.lgr.Debug("Initiating response")
+			chat.deps.Logger.Debug("Initiating response")
 			responseCtx, cancel := context.WithCancel(ctx)
 			closeF := func() {
 				chat.response = nil

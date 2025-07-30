@@ -3,10 +3,10 @@ package telegram
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
+	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/logger"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
@@ -25,26 +25,26 @@ type Responder struct {
 
 	chat *Chat
 
-	lgr *slog.Logger
+	deps deps.Deps
 }
 
-func NewResponder(close func(), chat *Chat) *Responder {
-	lgr := chat.lgr.With(logger.CALLER, "messenger.telegram.Responder")
+func NewResponder(close func(), chat *Chat, deps deps.Deps) *Responder {
+	deps.Logger = deps.Logger.With(logger.CALLER, "messenger.telegram.Responder")
 
-	return &Responder{close: close, chat: chat, lgr: lgr}
+	return &Responder{close: close, chat: chat, deps: deps}
 }
 
 func (resp *Responder) GoRespond(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
-			resp.lgr.With(logger.ERROR, err).Error("panic in GoRespond")
+			resp.deps.Logger.With(logger.ERROR, err).Error("panic in GoRespond")
 		}
 		resp.close()
 	}()
 
 	responseMessage, err := resp.sendMessage("Thinking...")
 	if err != nil {
-		resp.lgr.With(logger.ERROR, err).Error("Failed to send initial message")
+		resp.deps.Logger.With(logger.ERROR, err).Error("Failed to send initial message")
 		return
 	}
 
@@ -60,13 +60,13 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 		case <-ctx.Done():
 			err = ctx.Err()
 			if err != nil {
-				resp.lgr.With(logger.ERROR, errors.WithStack(err)).Debug("llm talk context closed")
+				resp.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Debug("llm talk context closed")
 			}
 			return
 		case chunk, ok := <-resp.response:
 			if !ok {
 				if err = resp.editMessage(responseMessage, responseText); err != nil {
-					resp.lgr.With(logger.ERROR, err).Error("Failed to update message last time")
+					resp.deps.Logger.With(logger.ERROR, err).Error("Failed to update message last time")
 				}
 				return
 			}
@@ -76,14 +76,14 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 				lastUpdate = time.Now()
 				sentText = responseText
 				if err = resp.editMessage(responseMessage, responseText); err != nil {
-					resp.lgr.With(logger.ERROR, err).Error("Failed to update message")
+					resp.deps.Logger.With(logger.ERROR, err).Error("Failed to update message")
 					return
 				}
 			} else if since := time.Since(lastUpdate); since > THINKING_THRESHOLD {
 				dots := strings.Repeat(".", 1+int(since.Seconds())%3)
 				thinking := "\n(Thinking" + dots + ")"
 				if err = resp.editMessage(responseMessage, responseText+thinking); err != nil {
-					resp.lgr.With(logger.ERROR, err).Error("Failed to update thinking")
+					resp.deps.Logger.With(logger.ERROR, err).Error("Failed to update thinking")
 				}
 			}
 		}

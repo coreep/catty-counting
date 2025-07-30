@@ -8,6 +8,7 @@ import (
 
 	"github.com/EPecherkin/catty-counting/config"
 	"github.com/EPecherkin/catty-counting/db"
+	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/llm"
 	"github.com/EPecherkin/catty-counting/logger"
 	"github.com/EPecherkin/catty-counting/messenger"
@@ -40,7 +41,7 @@ func main() {
 
 	switch mode {
 	case "server":
-		server.NewServer(msgc, llmc, server.NewServerDeps(lgr, dbc, files)).Run(ctx)
+		server.NewServer(msgc, llmc, deps.Deps{Logger: lgr, DBC: dbc, Files: files}).Run(ctx)
 	default:
 		fmt.Println("unknown mode: " + mode)
 	}
@@ -68,6 +69,6 @@ func initialize(ctx context.Context) (lgr *slog.Logger, databaseConnection *gorm
 		return lgr, nil, nil, nil, nil, fmt.Errorf("", err)
 	}
 
-	msgc, err := messenger.CreateTelegramClient(lgr, dbc, files)
+	msgc, err := messenger.CreateTelegramClient(deps.Deps{Logger: lgr, DBC: dbc, Files: files})
 	return lgr, dbc, files, llmc, msgc, nil
 }
