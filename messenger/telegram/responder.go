@@ -42,11 +42,13 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 		resp.close()
 	}()
 
-	responseMessage, err := resp.sendMessage("Thinking...")
+	responseMessage, err := resp.sendMessage("(Thinking...)")
 	if err != nil {
 		resp.deps.Logger.With(logger.ERROR, err).Error("Failed to send initial message")
 		return
 	}
+	// TODO: disabled temporary
+	return
 
 	var responseText string
 	var sentText string
@@ -80,7 +82,7 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 					return
 				}
 			} else if since := time.Since(lastUpdate); since > THINKING_THRESHOLD {
-				dots := strings.Repeat(".", 1+int(since.Seconds())%3)
+				dots := strings.Repeat(".", 1+int(since.Seconds())%int(3*THINKING_THRESHOLD.Seconds()))
 				thinking := "\n(Thinking" + dots + ")"
 				if err = resp.editMessage(responseMessage, responseText+thinking); err != nil {
 					resp.deps.Logger.With(logger.ERROR, err).Error("Failed to update thinking")

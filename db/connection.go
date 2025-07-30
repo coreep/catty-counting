@@ -36,7 +36,6 @@ func NewConnection() (*gorm.DB, error) {
 	// db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: dblgr})
 
 	db, err := gorm.Open(sqlite.Open("tmp/dev.sqlite3"), &gorm.Config{Logger: dblgr})
-
 	if err != nil {
 		return nil, fmt.Errorf("connecting to database: %w", errors.WithStack(err))
 	}

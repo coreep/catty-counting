@@ -22,7 +22,7 @@ import (
 func main() {
 	defer func() {
 		if err := recover(); err != nil {
-			fmt.Printf("{\"error\": \"panic in main: %w\"\n", err)
+			fmt.Printf("{\"error\": \"panic in main: %v\"}\n", err)
 		}
 	}()
 
@@ -66,9 +66,12 @@ func initialize(ctx context.Context) (lgr *slog.Logger, databaseConnection *gorm
 
 	llmc, err := llm.CreateOpenaiClient(ctx, lgr)
 	if err != nil {
-		return lgr, nil, nil, nil, nil, fmt.Errorf("", err)
+		return lgr, nil, nil, nil, nil, fmt.Errorf("initializing llm client: %w", err)
 	}
 
 	msgc, err := messenger.CreateTelegramClient(deps.Deps{Logger: lgr, DBC: dbc, Files: files})
+	if err != nil {
+		return lgr, nil, nil, nil, nil, fmt.Errorf("initializing messenger client: %w", err)
+	}
 	return lgr, dbc, files, llmc, msgc, nil
 }

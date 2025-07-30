@@ -39,7 +39,7 @@ func CreateClient(deps deps.Deps) (base.Client, error) {
 		tgbot.Debug = true
 	}
 
-	return &Client{tgbot: tgbot, messages: make(chan *base.MessageRequest), deps: deps}, nil
+	return &Client{tgbot: tgbot, messages: make(chan *base.MessageRequest), deps: deps, chats: make(map[int64]*Chat)}, nil
 }
 
 func (client *Client) GoTalk(ctx context.Context) {
