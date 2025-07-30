@@ -9,6 +9,7 @@ import (
 )
 
 var (
+	logLevel      string
 	fileBucket    string
 	geminiApiKey  string
 	openAiApiKey  string
@@ -20,23 +21,37 @@ func Init() error {
 		return fmt.Errorf("loading .env: %w", errors.WithStack(err))
 	}
 
-	fileBucket = os.Getenv("FILE_BUCKET")
-	if fileBucket == "" {
-		return errors.New("FILE_BUCKET is missing")
+	logLevel = os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "info"
 	}
-	// geminiApiKey = os.Getenv("GEMINI_API_KEY")
-	// if geminiApiKey == "" {
-	// 	return errors.New("GEMINI_API_KEY is missing")
-	// }
-	openAiApiKey = os.Getenv("OPENAI_API_KEY")
-	if openAiApiKey == "" {
-		return errors.New("OPENAI_API_KEY is missing")
+
+	checkAndSet := map[string]*string{
+		"FILE_BUCKET": &fileBucket,
+		// "GEMINI_API_KEY": &geminiApiKey,
+		"OPENAI_API_KEY": &openAiApiKey,
+		"TELEGRAM_TOKEN": &telegramToken,
 	}
-	telegramToken = os.Getenv("TELEGRAM_TOKEN")
-	if telegramToken == "" {
-		return errors.New("TELEGRAM_TOKEN is missing")
+	for varname, varvar := range checkAndSet {
+		if err := ensurePresent(varname, varvar); err != nil {
+			return err
+		}
 	}
+
 	return nil
+}
+
+func ensurePresent(varname string, varvar *string) error {
+	varval := os.Getenv(varname)
+	if varval == "" {
+		return errors.New(varname + " is missing")
+	}
+	*varvar = varval
+	return nil
+}
+
+func LogLevel() string {
+	return logLevel
 }
 
 func FileBucket() string {

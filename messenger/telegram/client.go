@@ -21,10 +21,12 @@ const (
 
 type Client struct {
 	tgbot    *tgbotapi.BotAPI
+	chats    map[int64]*Chat
 	messages chan *base.MessageRequest
-	lgr      *slog.Logger
-	dbc      *gorm.DB
-	files    *blob.Bucket
+
+	lgr   *slog.Logger
+	dbc   *gorm.DB
+	files *blob.Bucket
 }
 
 func CreateClient(lgr *slog.Logger, dbc *gorm.DB, files *blob.Bucket) (base.Client, error) {
@@ -37,8 +39,9 @@ func CreateClient(lgr *slog.Logger, dbc *gorm.DB, files *blob.Bucket) (base.Clie
 	}
 	lgr.Info("Authorized on account " + tgbot.Self.UserName)
 
-	// TODO: configurable debug mode
-	tgbot.Debug = true
+	if config.LogLevel() == "debug" {
+		tgbot.Debug = true
+	}
 
 	return &Client{tgbot: tgbot, messages: make(chan *base.MessageRequest), lgr: lgr, dbc: dbc, files: files}, nil
 }
@@ -61,24 +64,23 @@ func (client *Client) handleUpdates(ctx context.Context) {
 
 	for update := range updates {
 		client.lgr.With("update", update).Debug("bot received update")
+
 		chat := client.chatFor(ctx, update.Message.From.ID)
-		if chat != nil {
-			chat.updates <- update
-		}
+		chat.updates <- update
 	}
 }
 
 func (client *Client) chatFor(ctx context.Context, userID int64) *Chat {
-	chat, ok := bot.chats[userID]
+	chat, ok := client.chats[userID]
 	if !ok || chat == nil {
 		chatCtx, cancel := context.WithCancel(ctx)
 		closeF := func() {
-			bot.chats[userID] = nil
+			client.chats[userID] = nil
 			cancel()
 		}
-		chat = NewChat(userID, closeF, NewChatDeps(bot.deps.lgr, bot.tgbot, bot.deps.files, bot.deps.llmc))
-		bot.chats[userID] = chat
-		go chat.GoChat(chatCtx)
+		chat = NewChat(userID, closeF, client)
+		client.chats[userID] = chat
+		go chat.GoReceiveMessages(chatCtx)
 	}
 	return chat
 }

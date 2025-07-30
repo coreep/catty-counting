@@ -53,5 +53,4 @@ func (server *Server) Run(ctx context.Context) {
 }
 
 func (server *Server) goHandleMessageRequest(ctx context.Context, messageRequest *base.MessageRequest) {
-
 }

@@ -5,73 +5,129 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/EPecherkin/catty-counting/llm"
+	"github.com/EPecherkin/catty-counting/db"
 	"github.com/EPecherkin/catty-counting/logger"
+	"github.com/EPecherkin/catty-counting/messenger/base"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"gocloud.dev/blob"
+	"github.com/pkg/errors"
+	"gorm.io/gorm"
 )
 
-type ChatDeps struct {
-	tgbot *tgbotapi.BotAPI
-	BotDeps
-}
-
-func NewChatDeps(lgr *slog.Logger, tgbot *tgbotapi.BotAPI, files *blob.Bucket, llmc llm.Client) *ChatDeps {
-	return &ChatDeps{tgbot: tgbot, BotDeps: BotDeps{lgr: lgr, files: files, llmc: llmc}}
-}
+const (
+	WAIT_FOR_MESSAGE = 1 * time.Second
+)
 
 type Chat struct {
-	userID       int64
-	close        func()
-	deps         *ChatDeps
-	updates      chan tgbotapi.Update
-	lastActiveAt time.Time
-	llmChat      llm.Chat
-	response     *Response
+	telegramUserID int64
+	close          func()
+	client         *Client
+
+	updates  chan tgbotapi.Update
+	response chan string
+	user     db.User
+
+	responder *Responder
+
+	lgr *slog.Logger
 }
 
-func NewChat(userID int64, closeF func(), deps *ChatDeps) *Chat {
-	deps.lgr = deps.lgr.With(logger.TELEGRAM_USER_ID, userID)
-	deps.lgr.Info("creating new chat")
-	return &Chat{userID: userID, close: closeF, deps: deps, updates: make(chan tgbotapi.Update)}
+func NewChat(userID int64, closeF func(), client *Client) *Chat {
+	lgr := client.lgr.With(logger.CALLER, "messenger.telegram.Chat").With(logger.TELEGRAM_USER_ID, userID)
+	return &Chat{telegramUserID: userID, close: closeF, client: client, updates: make(chan tgbotapi.Update), lgr: lgr}
 }
 
-func (chat *Chat) GoChat(ctx context.Context) {
-	chat.deps.lgr.Debug("chat is listening to updates")
+func (chat *Chat) GoReceiveMessages(ctx context.Context) {
+	chat.lgr.Debug("message builder is accumulating")
 	defer func() {
 		if err := recover(); err != nil {
-			chat.deps.lgr.With(logger.ERROR, err).Error("panic in GoChat")
+			chat.lgr.With(logger.ERROR, err).Error("panic in GoReceiveMessages")
 		}
 		chat.close()
+		close(chat.updates)
 	}()
 
-	llmChat, err := chat.deps.llmc.CreateChat(ctx, chat.deps.lgr)
-	if err != nil {
-		chat.deps.lgr.With(logger.ERROR, err).Error("Failed to start llm chatting")
-		return
+	var user db.User
+	if err := chat.client.dbc.Find(user, db.User{TelegramID: chat.telegramUserID}).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			chat.lgr.With(logger.ERROR, err).Error("Failed to query user")
+			return
+		} else {
+			chat.lgr.Debug("Creating new user from telegram")
+			user = db.User{TelegramID: chat.telegramUserID}
+			if err := chat.client.dbc.Create(&user).Error; err != nil {
+				chat.lgr.With(logger.ERROR, err).Error("Failed to create user")
+				return
+			}
+		}
 	}
-	chat.llmChat = llmChat
+	chat.user = user
 
-	// todo. select listeting to done to clean up chat.updates
+	timeouter := time.NewTicker(WAIT_FOR_MESSAGE)
+	defer func() { timeouter.Stop() }()
+
+	var message *db.Message
+	var preResponse string
+
 	for {
 		select {
-		case update := <-chat.updates:
-			chat.lastActiveAt = time.Now()
-			chat.deps.lgr.Debug("chat received update")
-			if chat.response != nil {
-				chat.deps.lgr.Info("chat received update during another exchange. Interrupting...")
-				chat.response.close()
+		case <-ctx.Done():
+			lgr := chat.lgr
+			if err := ctx.Err(); err != nil {
+				lgr = lgr.With(logger.ERROR, errors.WithStack(err))
 			}
+			lgr.Debug("telegram chat context closed")
+			return
+		case update := <-chat.updates:
+			tMessage := update.Message
+			chat.lgr = chat.lgr.
+				With(logger.TELEGRAM_UPDATE_ID, update.UpdateID).
+				With(logger.TELEGRAM_CHAT_ID, tMessage.Chat.ID).
+				With(logger.TELEGRAM_MESSAGE_ID, tMessage.MessageID)
+
+			if tMessage.Audio != nil || len(tMessage.Entities) > 0 || tMessage.Voice != nil || tMessage.Video != nil || tMessage.VideoNote != nil || tMessage.Sticker != nil || tMessage.Contact != nil || tMessage.Location != nil || tMessage.Venue != nil || tMessage.Poll != nil || tMessage.Dice != nil || tMessage.Invoice != nil {
+				chat.lgr.With("update", update).Warn("received unusual content")
+				preResponse = "Sorry, I don't yet know how to work with that, but I'll do my best."
+			}
+
+			if chat.responder != nil {
+				chat.lgr.Info("chat received update during another exchange. Interrupting...")
+				chat.responder.close()
+			}
+			if message == nil {
+				chat.lgr.Debug("received new update")
+				message = &db.Message{TelegramIDs: []int{tMessage.MessageID}}
+				if err := chat.client.dbc.Create(message).Error; err != nil {
+					chat.lgr.With(logger.ERROR, err).Error("Failed to create message")
+				}
+				chat.lgr = chat.lgr.With(logger.MESSAGE_ID, message.ID)
+			} else {
+				chat.lgr.Debug("received extra update for existing message")
+				message.TelegramIDs = append(message.TelegramIDs, tMessage.MessageID)
+			}
+			message.Text += tMessage.Text
+			if err := chat.client.dbc.Save(message).Error; err != nil {
+				chat.lgr.With(logger.ERROR, err).Error("Failed to save message")
+			}
+			if tMessage.Document != nil {
+				tMessage.Document.FileID
+			}
+			if tMessage.Photo != nil {
+			}
+
+			timeouter.Stop()
+			timeouter = time.NewTicker(WAIT_FOR_MESSAGE)
+		case <-timeouter.C:
+			chat.lgr.Debug("Initiating response")
 			responseCtx, cancel := context.WithCancel(ctx)
 			closeF := func() {
 				chat.response = nil
 				cancel()
 			}
-			response := NewResponse(update, closeF, NewResponseDeps(chat.deps.lgr, chat.deps.tgbot, chat.deps.files, chat.llmChat))
-			go response.GoRespond(responseCtx)
-		case <-ctx.Done():
-			chat.deps.lgr.Info("exchange interrupted")
-			close(chat.updates)
+			responder := NewResponder(closeF, chat)
+			chat.responder = responder
+			go responder.GoRespond(responseCtx)
+			responder.response <- preResponse
+			chat.client.messages <- base.NewMessageRequest(*message, responder.response)
 			return
 		}
 	}
