@@ -6,9 +6,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/EPecherkin/catty-counting/logger"
 	"github.com/pkg/errors"
 
+	"github.com/EPecherkin/catty-counting/config"
 	// "gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -18,7 +18,7 @@ import (
 func NewConnection() (*gorm.DB, error) {
 	// TODO: need JSON format
 	logLevel := gormlogger.Warn
-	if logger.IsDebug() {
+	if config.LogDebug() {
 		logLevel = gormlogger.Info
 	}
 	dblgr := gormlogger.New(

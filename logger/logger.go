@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/EPecherkin/catty-counting/config"
 	"github.com/pkg/errors"
 )
 
@@ -27,10 +28,8 @@ const (
 // Build a logger that prints error stacktrace
 // Inspired by https://stackoverflow.com/questions/77304845/how-to-log-errors-with-log-slog
 func NewLogger() *slog.Logger {
-	level = os.Getenv("LOG_LEVEL")
-	fmt.Println("level " + level)
 	logLevel := slog.LevelInfo
-	if level == "debug" {
+	if config.LogDebug() {
 		logLevel = slog.LevelDebug
 	}
 

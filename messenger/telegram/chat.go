@@ -154,7 +154,7 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 			timeouter.Stop()
 			timeouter = time.NewTicker(WAIT_FOR_MESSAGE)
 		case <-timeouter.C:
-			chat.deps.Logger.Debug("Initiating response")
+			chat.deps.Logger.Debug("Message built. Initiating response")
 			responseCtx, cancel := context.WithCancel(ctx)
 			closeF := func() {
 				chat.response = nil

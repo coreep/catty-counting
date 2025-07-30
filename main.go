@@ -48,11 +48,11 @@ func main() {
 }
 
 func initialize(ctx context.Context) (lgr *slog.Logger, databaseConnection *gorm.DB, filesBucket *blob.Bucket, _ llm.Client, _ messenger.Client, _ error) {
-	lgr = logger.NewLogger()
-
 	if err := config.Init(); err != nil {
-		return lgr, nil, nil, nil, nil, fmt.Errorf("initializing config: %w", err)
+		return logger.NewLogger(), nil, nil, nil, nil, fmt.Errorf("initializing config: %w", err)
 	}
+
+	lgr = logger.NewLogger()
 
 	dbc, err := db.NewConnection()
 	if err != nil {
