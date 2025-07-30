@@ -84,34 +84,71 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 				With(logger.TELEGRAM_CHAT_ID, tMessage.Chat.ID).
 				With(logger.TELEGRAM_MESSAGE_ID, tMessage.MessageID)
 
+			if chat.responder != nil {
+				chat.deps.Logger.Info("chat received update during another exchange. Interrupting...")
+				chat.responder.close()
+			}
+
 			if tMessage.Audio != nil || len(tMessage.Entities) > 0 || tMessage.Voice != nil || tMessage.Video != nil || tMessage.VideoNote != nil || tMessage.Sticker != nil || tMessage.Contact != nil || tMessage.Location != nil || tMessage.Venue != nil || tMessage.Poll != nil || tMessage.Dice != nil || tMessage.Invoice != nil {
 				chat.deps.Logger.With("update", update).Warn("received unusual content")
 				preResponse = "Sorry, I don't yet know how to work with that, but I'll do my best."
 			}
 
-			if chat.responder != nil {
-				chat.deps.Logger.Info("chat received update during another exchange. Interrupting...")
-				chat.responder.close()
-			}
 			if message == nil {
 				chat.deps.Logger.Debug("received new update")
-				message = &db.Message{TelegramIDs: []int{tMessage.MessageID}}
+				message = &db.Message{UserID: chat.user.ID, TelegramIDs: []int{tMessage.MessageID}}
 				if err := chat.deps.DBC.Create(message).Error; err != nil {
-					chat.deps.Logger.With(logger.ERROR, err).Error("Failed to create message")
+					chat.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Error("Failed to create message")
+					// NOTE: important failure
 				}
 				chat.deps.Logger = chat.deps.Logger.With(logger.MESSAGE_ID, message.ID)
 			} else {
 				chat.deps.Logger.Debug("received extra update for existing message")
 				message.TelegramIDs = append(message.TelegramIDs, tMessage.MessageID)
 			}
+
 			message.Text += tMessage.Text
 			if err := chat.deps.DBC.Save(message).Error; err != nil {
-				chat.deps.Logger.With(logger.ERROR, err).Error("Failed to save message")
+				chat.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Error("Failed to save message")
+				// NOTE: important failure
 			}
+
 			if tMessage.Document != nil {
-				tMessage.Document.FileID
+				lgr := chat.deps.Logger.With(logger.TELEGRAM_DOCUMENT_ID, tMessage.Document.FileID)
+				lgr.Debug("Received document")
+				// DONE: TOAI: check content of db/models.go .
+				// TODO: TOAI: download file from telegram. Create new db.File for correspnding chat.user with fields based on data from the update. Add created file to message.files
+				file := db.File{
+					MessageID:    message.ID,
+					TelegramID:   tMessage.Document.FileID,
+					OriginalName: tMessage.Document.FileName,
+					MimeType:     tMessage.Document.MimeType,
+					Size:         int64(tMessage.Document.FileSize),
+				}
+				message.Files = append(message.Files, file)
+				if err := chat.deps.DBC.Save(&file).Error; err != nil {
+					lgr.With(logger.ERROR, errors.WithStack(err)).Error("Filed to save file with document")
+					// NOTE: important failure
+				}
 			}
+
 			if tMessage.Photo != nil {
+				for _, photo := range tMessage.Photo {
+					lgr := chat.deps.Logger.With(logger.TELEGRAM_PHOTO_ID, photo.FileID)
+					lgr.Debug("Received photo")
+					// DONE: TOAI: check content of db/models.go .
+					// TODO: TOAI: download each file from telegram. Create new db.File for correspnding chat.user with fields based on data from the update. Add created file to message.files
+					file := db.File{
+						MessageID:  message.ID,
+						TelegramID: photo.FileID,
+						Size:       int64(photo.FileSize),
+					}
+					message.Files = append(message.Files, file)
+					if err := chat.deps.DBC.Save(&file).Error; err != nil {
+						lgr.With(logger.ERROR, errors.WithStack(err)).Error("Failed to save file with photo")
+						// NOTE: important failure
+					}
+				}
 			}
 
 			timeouter.Stop()
@@ -123,7 +160,7 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 				chat.response = nil
 				cancel()
 			}
-			responder := NewResponder(closeF, chat)
+			responder := NewResponder(closeF, chat, chat.deps)
 			chat.responder = responder
 			go responder.GoRespond(responseCtx)
 			responder.response <- preResponse

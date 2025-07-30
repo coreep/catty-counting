@@ -18,6 +18,8 @@ const TELEGRAM_USER_ID = "telegram_user_id"
 const TELEGRAM_UPDATE_ID = "telegram_update_id"
 const TELEGRAM_CHAT_ID = "telegram_chat_id"
 const TELEGRAM_MESSAGE_ID = "telegram_message_id"
+const TELEGRAM_DOCUMENT_ID = "telegram_document_id"
+const TELEGRAM_PHOTO_ID = "telegram_photo_id"
 
 // Build a logger that prints error stacktrace
 // Inspired by https://stackoverflow.com/questions/77304845/how-to-log-errors-with-log-slog

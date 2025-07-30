@@ -74,7 +74,7 @@ func (client *Client) chatFor(ctx context.Context, userID int64) *Chat {
 			client.chats[userID] = nil
 			cancel()
 		}
-		chat = NewChat(userID, closeF, client)
+		chat = NewChat(userID, closeF, client, client.deps)
 		client.chats[userID] = chat
 		go chat.GoReceiveMessages(chatCtx)
 	}
