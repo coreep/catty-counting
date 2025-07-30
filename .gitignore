@@ -33,3 +33,6 @@ uploads/
 # Editor/IDE
 # .idea/
 # .vscode/
+/.blackbox/pubring.gpg~
+/.blackbox/pubring.kbx~
+/.blackbox/secring.gpg
