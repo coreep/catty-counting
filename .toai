@@ -4,8 +4,20 @@ This project is an Accounting Assistance.
 
 # Additional instructions on how to work with this project.
 
-Among the files you will find `.toai`. These files contain additional context/instructions on how to work with the project.
-It uses Markdown syntax, using headings for your better understanding of context.
-Instructions are surrounded by square brackets with `toai` preffix. For example: toai[you should run such instruction]. Everything not in square brackets should be considered just as context.
-Meeting instruction, you should make necessary changes in the directory where the corresponding `.toai` file is located. Once instruction is processed - you should mark it completed by adding `done` before the instruction. If instruction is marked as `done` or `skip` - ignore such instructions. For example: skip[you should ignore this instruction] or done[you should ignore this instruction]
-Ask before running any instruction. Running instructions, be sure to follow the code style and structure of the project.
+Each file named `.toai` contains additional context or instructions. It uses Markdown syntax, using headings for your better understanding of context. For each directory - read `.toai` located in that directory.
+Instructions are defined only like `TODO: TOAI: you should run such instruction`
+Execute every instruction. After it is executed - replace `TODO` with `DONE` to mark it completed. Example: `DONE: TOAI: this instruction should be skipped because it is executed`.
+Ask before running any instruction.
+
+# CodeStyle requirements
+
+Write code in the same style as the code of the project. Before adding new files to a directory - check 3 files in that directory. If there are no such files - ask how should you proceed.
+
+We are following pattern "Command". Main points:
+
+  - A lot of logic paths can be described as chain of Commands.
+  - Command is represented as an instance, that is capable to store state and dependencies for execution of a Command.
+  - Command can use a Client to perform actions with external entities, like DataBases, APIs, File Management Systems, etc.
+  - Client has an instance too, but its state is considered to be immutable after execution.
+  - Commands receive parameters as a list of arguments during initialization.
+  - Commands receive and store necessary clients as `deps` field on the instance.
