@@ -10,12 +10,12 @@ import (
 // Creates `response` channel with the ability to write response sequentially. Send NEW chunks, not the entire text.
 // `response` should be canceled after the processing, signaling the end of response.
 type MessageRequest struct {
-	message  db.Message
-	response chan<- string
+	Message  db.Message
+	Response chan<- string
 }
 
 func NewMessageRequest(message db.Message, response chan <- string) *MessageRequest {
-	return &MessageRequest{message: message, response: response}
+	return &MessageRequest{Message: message, Response: response}
 }
 
 type Client interface {

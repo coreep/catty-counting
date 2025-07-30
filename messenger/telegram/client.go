@@ -26,7 +26,7 @@ type Client struct {
 }
 
 func CreateClient(deps deps.Deps) (base.Client, error) {
-	deps.Logger = deps.Logger.With(logger.CALLER, "telegram client")
+	deps.Logger = deps.Logger.With(logger.CALLER, "messenger.telegram.client")
 	deps.Logger.Debug("Creating telegram client")
 	token := config.TelegramToken()
 	tgbot, err := tgbotapi.NewBotAPI(token)
@@ -69,6 +69,7 @@ func (client *Client) handleUpdates(ctx context.Context) {
 func (client *Client) chatFor(ctx context.Context, userID int64) *Chat {
 	chat, ok := client.chats[userID]
 	if !ok || chat == nil {
+		client.deps.Logger.Debug("building new chat")
 		chatCtx, cancel := context.WithCancel(ctx)
 		closeF := func() {
 			if client.chats[userID] != nil {
@@ -80,6 +81,8 @@ func (client *Client) chatFor(ctx context.Context, userID int64) *Chat {
 		chat = NewChat(userID, closeF, client, client.deps)
 		client.chats[userID] = chat
 		go chat.GoReceiveMessages(chatCtx)
+	} else {
+		client.deps.Logger.Debug("utilizing existing chat")
 	}
 	return chat
 }

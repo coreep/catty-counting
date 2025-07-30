@@ -16,7 +16,8 @@ var level string
 const (
 	ERROR                = "error"
 	CALLER               = "caller"
-	MESSAGE_ID           = "telegram_message_id"
+	MESSAGE_ID           = "message_id"
+	USER_ID              = "user_id"
 	TELEGRAM_USER_ID     = "telegram_user_id"
 	TELEGRAM_UPDATE_ID   = "telegram_update_id"
 	TELEGRAM_CHAT_ID     = "telegram_chat_id"

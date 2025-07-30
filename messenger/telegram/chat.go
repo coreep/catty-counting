@@ -39,6 +39,7 @@ func NewChat(userID int64, closeF func(), client *Client, deps deps.Deps) *Chat 
 func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 	chat.deps.Logger.Debug("receiving updates and accumulating messages")
 	defer func() {
+		chat.deps.Logger.Debug("stopping receiving updates")
 		if err := recover(); err != nil {
 			chat.deps.Logger.With(logger.ERROR, err).Error("panic in GoReceiveMessages")
 		}
@@ -61,12 +62,16 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 		}
 	}
 	chat.user = user
+	chat.deps.Logger = chat.deps.Logger.With(logger.USER_ID, user.ID)
 
-	timeouter := time.NewTicker(WAIT_FOR_MESSAGE)
+	var timeouter *time.Ticker
 	refreshTimeouter := func() {
-		timeouter.Stop()
+		if timeouter != nil {
+			timeouter.Stop()
+		}
 		timeouter = time.NewTicker(WAIT_FOR_MESSAGE)
 	}
+	refreshTimeouter()
 	defer func() { timeouter.Stop() }()
 
 	var message *db.Message
@@ -157,14 +162,15 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 
 			refreshTimeouter()
 		case <-timeouter.C:
-			refreshTimeouter()
 			if message == nil {
 				continue
 			}
 			chat.deps.Logger.Debug("Message built. Initiating response")
 			responseCtx, cancel := context.WithCancel(ctx)
 			closeF := func() {
-				chat.responder.deps.Logger.Debug("closing responder")
+				if chat.responder != nil {
+					chat.responder.deps.Logger.Debug("closing responder")
+				}
 				chat.responder = nil
 				cancel()
 			}
@@ -172,6 +178,7 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 			chat.responder = responder
 			go responder.GoRespond(responseCtx)
 			responder.response <- preResponse
+			chat.deps.Logger.Debug("Sending message request")
 			chat.client.messages <- base.NewMessageRequest(*message, responder.response)
 			message = nil
 		}

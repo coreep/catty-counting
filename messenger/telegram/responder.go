@@ -31,11 +31,12 @@ type Responder struct {
 func NewResponder(close func(), chat *Chat, deps deps.Deps) *Responder {
 	deps.Logger = deps.Logger.With(logger.CALLER, "messenger.telegram.Responder")
 
-	return &Responder{close: close, chat: chat, deps: deps}
+	return &Responder{close: close, chat: chat, deps: deps, response: make(chan string)}
 }
 
 func (resp *Responder) GoRespond(ctx context.Context) {
 	defer func() {
+		resp.deps.Logger.Debug("stopping responder")
 		if err := recover(); err != nil {
 			resp.deps.Logger.With(logger.ERROR, err).Error("panic in GoRespond")
 		}
@@ -47,8 +48,6 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 		resp.deps.Logger.With(logger.ERROR, err).Error("Failed to send initial message")
 		return
 	}
-	// TODO: disabled temporary
-	return
 
 	var responseText string
 	var sentText string
@@ -60,18 +59,22 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			lgr := resp.deps.Logger
 			err = ctx.Err()
 			if err != nil {
-				resp.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Debug("llm talk context closed")
+				lgr = lgr.With(logger.ERROR, errors.WithStack(err))
 			}
+			lgr.Debug("telegram responder context closed")
 			return
 		case chunk, ok := <-resp.response:
 			if !ok {
+				resp.deps.Logger.Debug("response channel closed")
 				if err = resp.editMessage(responseMessage, responseText); err != nil {
 					resp.deps.Logger.With(logger.ERROR, err).Error("Failed to update message last time")
 				}
 				return
 			}
+			resp.deps.Logger.Debug("attaching chunk to response message")
 			responseText += chunk
 		case <-updater.C:
 			if responseText != sentText {

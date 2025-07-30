@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/llm"
@@ -30,16 +31,20 @@ func NewServer(msgc messenger.Client, llmc llm.Client, deps deps.Deps) *Server {
 func (server *Server) Run(ctx context.Context) {
 	server.deps.Logger.Debug("Running server")
 
-	server.msgc.GoTalk(ctx)
+	go server.msgc.GoTalk(ctx)
 	for {
 		select {
 		case messageRequest := <-server.msgc.Messages():
 			go server.goHandleMessageRequest(ctx, messageRequest)
 		case <-ctx.Done():
 			server.deps.Logger.Info("Server message wait interrupted")
+			return
 		}
 	}
 }
 
 func (server *Server) goHandleMessageRequest(ctx context.Context, messageRequest *base.MessageRequest) {
+	server.deps.Logger.Debug(fmt.Sprintf("received message MessageRequest %v", messageRequest))
+	messageRequest.Response <- "handled"
+	close(messageRequest.Response)
 }
