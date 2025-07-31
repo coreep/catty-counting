@@ -13,7 +13,12 @@ Ask before running any instruction.
 
 Write code in the same style as the code of the project. Before adding new files to a directory - check 3 files in that directory. If there are no such files - ask how should you proceed.
 
-We are following pattern "Command". Main points:
+  * Use a consistent naming convention for packages and files.
+  * Use prepared statements to prevent SQL injection.
+
+## We are following pattern "Command".
+
+Main points:
 
   - A lot of logic paths can be described as chain of Commands.
   - Command is represented as an instance, that is capable to store state and dependencies for execution of a Command.
@@ -21,3 +26,17 @@ We are following pattern "Command". Main points:
   - Client has an instance too, but its state is considered to be immutable after execution.
   - Commands receive parameters as a list of arguments during initialization.
   - Commands receive and store necessary clients as `deps` field on the instance.
+
+## Logging
+
+  * Use structured logging with slog.Logger.
+  * Add contextual information to logs.
+  * Use field name constants taken from logger/logger.go, add new if necessary.
+  * Avoid logging sensitive information.
+  * Pass logger as a dependency to commands/clients.
+
+## How to handle errors
+
+  * Use `fmt.Errorf` when propagating the error.
+  * Write an error message in a story-telling fashion, like `fmt.Errorf("downloading file: %w", err)`.
+  * When create an error or wrap error coming from an external source, add stacktrace with `errors.WithStack`.

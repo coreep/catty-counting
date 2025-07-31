@@ -2,6 +2,9 @@ package telegram
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"net/http"
 	"time"
 
 	"github.com/EPecherkin/catty-counting/db"
@@ -9,6 +12,7 @@ import (
 	"github.com/EPecherkin/catty-counting/logger"
 	"github.com/EPecherkin/catty-counting/messenger/base"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
@@ -126,7 +130,11 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 				lgr := chat.deps.Logger.With(logger.TELEGRAM_DOCUMENT_ID, tMessage.Document.FileID)
 				lgr.Debug("Received document")
 				// DONE: TOAI: check content of db/models.go .
-				// TODO: TOAI: download file from telegram. Create new db.File for correspnding chat.user with fields based on data from the update. Add created file to message.files
+				// DONE: TOAI: create new db.File for correspnding chat.user with fields based on data from the update. Add created file to message.files
+				// DONE: TOAI: download file using tgbotapi instsance from chat.client. Generate uniq UUID and use it as a key to store the file using blob storage from chat.deps.Files. Set key to db.File
+				if err := chat.downloadFile(ctx, &file); err != nil {
+					lgr.With(logger.ERROR, errors.WithStack(err)).Error("Filed to download file with document")
+				}
 				file := db.File{
 					MessageID:    message.ID,
 					TelegramID:   tMessage.Document.FileID,
@@ -146,11 +154,15 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 					lgr := chat.deps.Logger.With(logger.TELEGRAM_PHOTO_ID, photo.FileID)
 					lgr.Debug("Received photo")
 					// DONE: TOAI: check content of db/models.go .
-					// TODO: TOAI: download each file from telegram. Create new db.File for correspnding chat.user with fields based on data from the update. Add created file to message.files
+					// DONE: TOAI: Create new db.File for correspnding chat.user with fields based on data from the update. Add created file to message.files
+					// DONE: TOAI: download file using tgbotapi instsance from chat.client. Generate uniq UUID and use it as a key to store the file using blob storage from chat.deps.Files. Set key to db.File
 					file := db.File{
 						MessageID:  message.ID,
 						TelegramID: photo.FileID,
 						Size:       int64(photo.FileSize),
+					}
+					if err := chat.downloadFile(ctx, &file); err != nil {
+						lgr.With(logger.ERROR, errors.WithStack(err)).Error("Filed to download file with photo")
 					}
 					message.Files = append(message.Files, file)
 					if err := chat.deps.DBC.Save(&file).Error; err != nil {
@@ -183,4 +195,39 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 			message = nil
 		}
 	}
+}
+
+func (chat *Chat) downloadFile(ctx context.Context, file *db.File) error {
+	fileUrl, err := chat.client.tgbot.GetFileDirectURL(file.TelegramID)
+	if err != nil {
+		return fmt.Errorf("getting file direct url: %w", err)
+	}
+
+	resp, err := http.Get(fileUrl)
+	if err != nil {
+		return errors.Wrap(err, "downloading file")
+	}
+	defer resp.Body.Close()
+
+	key := uuid.New().String()
+	w, err := chat.deps.Files.NewWriter(ctx, key, nil)
+	if err != nil {
+		return errors.Wrap(err, "creating new file writer")
+	}
+	if _, err := io.Copy(w, resp.Body); err != nil {
+		return errors.Wrap(err, "copying file to blob")
+	}
+	if err := w.Close(); err != nil {
+		return errors.Wrap(err, "closing writer")
+	}
+
+	exposedFile := db.ExposedFile{
+		FileID: file.ID,
+		Key:    key,
+	}
+	if err := chat.deps.DBC.Create(&exposedFile).Error; err != nil {
+		return errors.Wrap(err, "creating exposed file record")
+	}
+	file.ExposedFile = &exposedFile
+	return nil
 }

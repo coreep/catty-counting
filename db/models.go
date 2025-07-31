@@ -34,7 +34,8 @@ type Message struct {
 
 type File struct {
 	gorm.Model
-	MessageID    uint `gorm:"index"`
+	MessageID    uint   `gorm:"index"`
+	Key          string `gorm:"varchar(128)"`
 	Size         int64
 	MimeType     string `gorm:"type:varchar(256)"`
 	OriginalName string `gorm:"type:varchar(1024)"`
