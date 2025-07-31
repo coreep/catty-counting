@@ -131,9 +131,10 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 				lgr.Debug("Received document")
 				// DONE: TOAI: check content of db/models.go .
 				// DONE: TOAI: create new db.File for correspnding chat.user with fields based on data from the update. Add created file to message.files
-				// DONE: TOAI: download file using tgbotapi instsance from chat.client. Generate uniq UUID and use it as a key to store the file using blob storage from chat.deps.Files. Set key to db.File
-				if err := chat.downloadFile(ctx, &file); err != nil {
-					lgr.With(logger.ERROR, errors.WithStack(err)).Error("Filed to download file with document")
+				// DONE: TOAI: download file using tgbotapi instsance from chat.client. Generate uniq UUID and use it as a bloKey to store the file using blob storage from chat.deps.Files. Set bloKey to db.File
+				blobKey, err := chat.downloadFile(ctx, tMessage.Document.FileID)
+				if err != nil {
+					lgr.With(logger.ERROR, errors.WithStack(err)).Error("Filed to download document")
 				}
 				file := db.File{
 					MessageID:    message.ID,
@@ -141,6 +142,7 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 					OriginalName: tMessage.Document.FileName,
 					MimeType:     tMessage.Document.MimeType,
 					Size:         int64(tMessage.Document.FileSize),
+					BlobKey:      blobKey,
 				}
 				message.Files = append(message.Files, file)
 				if err := chat.deps.DBC.Save(&file).Error; err != nil {
@@ -156,13 +158,15 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 					// DONE: TOAI: check content of db/models.go .
 					// DONE: TOAI: Create new db.File for correspnding chat.user with fields based on data from the update. Add created file to message.files
 					// DONE: TOAI: download file using tgbotapi instsance from chat.client. Generate uniq UUID and use it as a key to store the file using blob storage from chat.deps.Files. Set key to db.File
+					blobKey, err := chat.downloadFile(ctx, photo.FileID)
+					if err != nil {
+						lgr.With(logger.ERROR, errors.WithStack(err)).Error("Filed to download photo")
+					}
 					file := db.File{
 						MessageID:  message.ID,
 						TelegramID: photo.FileID,
 						Size:       int64(photo.FileSize),
-					}
-					if err := chat.downloadFile(ctx, &file); err != nil {
-						lgr.With(logger.ERROR, errors.WithStack(err)).Error("Filed to download file with photo")
+						BlobKey:    blobKey,
 					}
 					message.Files = append(message.Files, file)
 					if err := chat.deps.DBC.Save(&file).Error; err != nil {
@@ -197,37 +201,29 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 	}
 }
 
-func (chat *Chat) downloadFile(ctx context.Context, file *db.File) error {
-	fileUrl, err := chat.client.tgbot.GetFileDirectURL(file.TelegramID)
+func (chat *Chat) downloadFile(ctx context.Context, telegramID string) (blobKey string, _ error) {
+	fileUrl, err := chat.client.tgbot.GetFileDirectURL(telegramID)
 	if err != nil {
-		return fmt.Errorf("getting file direct url: %w", err)
+		return "", fmt.Errorf("getting file direct url: %w", err)
 	}
 
 	resp, err := http.Get(fileUrl)
 	if err != nil {
-		return errors.Wrap(err, "downloading file")
+		return "", fmt.Errorf("downloading file: %w", err)
 	}
 	defer resp.Body.Close()
 
-	key := uuid.New().String()
-	w, err := chat.deps.Files.NewWriter(ctx, key, nil)
+	blobKey = uuid.New().String()
+	w, err := chat.deps.Files.NewWriter(ctx, blobKey, nil)
 	if err != nil {
-		return errors.Wrap(err, "creating new file writer")
+		return "", fmt.Errorf("creating new file writer: %w", err)
 	}
 	if _, err := io.Copy(w, resp.Body); err != nil {
-		return errors.Wrap(err, "copying file to blob")
+		return "", fmt.Errorf("copying file to blob: %w", err)
 	}
 	if err := w.Close(); err != nil {
-		return errors.Wrap(err, "closing writer")
+		return "", fmt.Errorf("closing writer: %w", err)
 	}
 
-	exposedFile := db.ExposedFile{
-		FileID: file.ID,
-		Key:    key,
-	}
-	if err := chat.deps.DBC.Create(&exposedFile).Error; err != nil {
-		return errors.Wrap(err, "creating exposed file record")
-	}
-	file.ExposedFile = &exposedFile
-	return nil
+	return blobKey, nil
 }

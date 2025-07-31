@@ -102,6 +102,7 @@ func (resp *Responder) sendMessage(text string) (*tgbotapi.Message, error) {
 	if err != nil {
 		return nil, fmt.Errorf("sending message: %w", errors.WithStack(err))
 	}
+	resp.deps.Logger.Debug("sent message to user")
 	return &message, nil
 }
 
@@ -111,5 +112,6 @@ func (resp *Responder) editMessage(message *tgbotapi.Message, text string) error
 	if err != nil {
 		return fmt.Errorf("updating message: %w", errors.WithStack(err))
 	}
+	resp.deps.Logger.Debug("updated message to user")
 	return nil
 }

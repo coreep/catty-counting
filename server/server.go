@@ -44,7 +44,8 @@ func (server *Server) Run(ctx context.Context) {
 }
 
 func (server *Server) goHandleMessageRequest(ctx context.Context, messageRequest *base.MessageRequest) {
-	server.deps.Logger.Debug(fmt.Sprintf("received message MessageRequest %v", messageRequest))
+	server.deps.Logger.Debug(fmt.Sprintf("received message MessageRequest files %d", len(messageRequest.Message.Files)))
+	server.deps.Logger.Debug(fmt.Sprintf("received message MessageRequest %v", messageRequest.Message))
 	messageRequest.Response <- "handled"
 	close(messageRequest.Response)
 }
