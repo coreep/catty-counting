@@ -23,15 +23,15 @@ type Responder struct {
 
 	response chan string
 
-	chat *Chat
+	receiver *Receiver
 
 	deps deps.Deps
 }
 
-func NewResponder(close func(), chat *Chat, deps deps.Deps) *Responder {
+func NewResponder(close func(), receiver *Receiver, deps deps.Deps) *Responder {
 	deps.Logger = deps.Logger.With(logger.CALLER, "messenger.telegram.Responder")
 
-	return &Responder{close: close, chat: chat, deps: deps, response: make(chan string)}
+	return &Responder{close: close, receiver: receiver, deps: deps, response: make(chan string)}
 }
 
 func (resp *Responder) GoRespond(ctx context.Context) {
@@ -96,9 +96,9 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 }
 
 func (resp *Responder) sendMessage(text string) (*tgbotapi.Message, error) {
-	chatID := resp.chat.telegramUserID
+	chatID := resp.receiver.telegramUserID
 	attrs := tgbotapi.NewMessage(chatID, text)
-	message, err := resp.chat.client.tgbot.Send(attrs)
+	message, err := resp.receiver.client.tgbot.Send(attrs)
 	if err != nil {
 		return nil, fmt.Errorf("sending message: %w", errors.WithStack(err))
 	}
@@ -108,7 +108,7 @@ func (resp *Responder) sendMessage(text string) (*tgbotapi.Message, error) {
 
 func (resp *Responder) editMessage(message *tgbotapi.Message, text string) error {
 	editMsg := tgbotapi.NewEditMessageText(message.Chat.ID, message.MessageID, text)
-	_, err := resp.chat.client.tgbot.Send(editMsg)
+	_, err := resp.receiver.client.tgbot.Send(editMsg)
 	if err != nil {
 		return fmt.Errorf("updating message: %w", errors.WithStack(err))
 	}

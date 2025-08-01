@@ -21,52 +21,51 @@ const (
 	WAIT_FOR_MESSAGE = 1 * time.Second
 )
 
-type Chat struct {
+type Receiver struct {
 	telegramUserID int64
 	close          func()
 	client         *Client
 
-	updates  chan tgbotapi.Update
-	response chan string
-	user     db.User
+	updates chan tgbotapi.Update
+	user    db.User
 
 	responder *Responder
 
 	deps deps.Deps
 }
 
-func NewChat(userID int64, closeF func(), client *Client, deps deps.Deps) *Chat {
-	deps.Logger = deps.Logger.With(logger.CALLER, "messenger.telegram.Chat").With(logger.TELEGRAM_USER_ID, userID)
-	return &Chat{telegramUserID: userID, close: closeF, client: client, updates: make(chan tgbotapi.Update), deps: deps}
+func NewReceiver(tUserID int64, closeF func(), client *Client, deps deps.Deps) *Receiver {
+	deps.Logger = deps.Logger.With(logger.CALLER, "messenger.telegram.Receiver").With(logger.TELEGRAM_USER_ID, tUserID)
+	return &Receiver{telegramUserID: tUserID, close: closeF, client: client, updates: make(chan tgbotapi.Update), deps: deps}
 }
 
-func (chat *Chat) GoReceiveMessages(ctx context.Context) {
-	chat.deps.Logger.Debug("receiving updates and accumulating messages")
+func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
+	receiver.deps.Logger.Debug("receiving updates and accumulating messages")
 	defer func() {
-		chat.deps.Logger.Debug("stopping receiving updates")
+		receiver.deps.Logger.Debug("stopping receiving updates")
 		if err := recover(); err != nil {
-			chat.deps.Logger.With(logger.ERROR, err).Error("panic in GoReceiveMessages")
+			receiver.deps.Logger.With(logger.ERROR, err).Error("panic in GoReceiveMessages")
 		}
-		chat.close()
-		close(chat.updates)
+		receiver.close()
+		close(receiver.updates)
 	}()
 
 	var user db.User
-	if err := chat.deps.DBC.Find(user, db.User{TelegramID: chat.telegramUserID}).Error; err != nil {
+	if err := receiver.deps.DBC.Find(user, db.User{TelegramID: receiver.telegramUserID}).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			chat.deps.Logger.With(logger.ERROR, err).Error("Failed to query user")
+			receiver.deps.Logger.With(logger.ERROR, err).Error("Failed to query user")
 			return
 		} else {
-			chat.deps.Logger.Debug("Creating new user from telegram")
-			user = db.User{TelegramID: chat.telegramUserID}
-			if err := chat.deps.DBC.Create(&user).Error; err != nil {
-				chat.deps.Logger.With(logger.ERROR, err).Error("Failed to create user")
+			receiver.deps.Logger.Debug("Creating new user from telegram")
+			user = db.User{TelegramID: receiver.telegramUserID}
+			if err := receiver.deps.DBC.Create(&user).Error; err != nil {
+				receiver.deps.Logger.With(logger.ERROR, err).Error("Failed to create user")
 				return
 			}
 		}
 	}
-	chat.user = user
-	chat.deps.Logger = chat.deps.Logger.With(logger.USER_ID, user.ID)
+	receiver.user = user
+	receiver.deps.Logger = receiver.deps.Logger.With(logger.USER_ID, user.ID)
 
 	var timeouter *time.Ticker
 	refreshTimeouter := func() {
@@ -84,55 +83,55 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			lgr := chat.deps.Logger
+			lgr := receiver.deps.Logger
 			if err := ctx.Err(); err != nil {
 				lgr = lgr.With(logger.ERROR, errors.WithStack(err))
 			}
-			lgr.Debug("telegram chat context closed")
+			lgr.Debug("telegram receiver context closed")
 			return
-		case update := <-chat.updates:
+		case update := <-receiver.updates:
 			tMessage := update.Message
-			chat.deps.Logger = chat.deps.Logger.
+			receiver.deps.Logger = receiver.deps.Logger.
 				With(logger.TELEGRAM_UPDATE_ID, update.UpdateID).
 				With(logger.TELEGRAM_CHAT_ID, tMessage.Chat.ID).
 				With(logger.TELEGRAM_MESSAGE_ID, tMessage.MessageID)
 
-			if chat.responder != nil {
-				chat.deps.Logger.Info("chat received update during another exchange. Interrupting...")
-				chat.responder.close()
+			if receiver.responder != nil {
+				receiver.deps.Logger.Info("receiver received update during another exchange. Interrupting...")
+				receiver.responder.close()
 			}
 
 			if tMessage.Audio != nil || len(tMessage.Entities) > 0 || tMessage.Voice != nil || tMessage.Video != nil || tMessage.VideoNote != nil || tMessage.Sticker != nil || tMessage.Contact != nil || tMessage.Location != nil || tMessage.Venue != nil || tMessage.Poll != nil || tMessage.Dice != nil || tMessage.Invoice != nil {
-				chat.deps.Logger.With("update", update).Warn("received unusual content")
+				receiver.deps.Logger.With("update", update).Warn("received unusual content")
 				preResponse = "Sorry, I don't yet know how to work with that, but I'll do my best."
 			}
 
 			if message == nil {
-				chat.deps.Logger.Debug("building new message")
-				message = &db.Message{UserID: chat.user.ID, TelegramIDs: []int{tMessage.MessageID}}
-				if err := chat.deps.DBC.Create(message).Error; err != nil {
-					chat.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Error("Failed to create message")
+				receiver.deps.Logger.Debug("building new message")
+				message = &db.Message{UserID: receiver.user.ID, TelegramIDs: []int{tMessage.MessageID}}
+				if err := receiver.deps.DBC.Create(message).Error; err != nil {
+					receiver.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Error("Failed to create message")
 					// NOTE: important failure
 				}
-				chat.deps.Logger = chat.deps.Logger.With(logger.MESSAGE_ID, message.ID)
+				receiver.deps.Logger = receiver.deps.Logger.With(logger.MESSAGE_ID, message.ID)
 			} else {
-				chat.deps.Logger.Debug("appending to message")
+				receiver.deps.Logger.Debug("appending to message")
 				message.TelegramIDs = append(message.TelegramIDs, tMessage.MessageID)
 			}
 
 			message.Text += tMessage.Text
-			if err := chat.deps.DBC.Save(message).Error; err != nil {
-				chat.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Error("Failed to save message")
+			if err := receiver.deps.DBC.Save(message).Error; err != nil {
+				receiver.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Error("Failed to save message")
 				// NOTE: important failure
 			}
 
 			if tMessage.Document != nil {
-				lgr := chat.deps.Logger.With(logger.TELEGRAM_DOCUMENT_ID, tMessage.Document.FileID)
+				lgr := receiver.deps.Logger.With(logger.TELEGRAM_DOCUMENT_ID, tMessage.Document.FileID)
 				lgr.Debug("Received document")
 				// DONE: TOAI: check content of db/models.go .
-				// DONE: TOAI: create new db.File for correspnding chat.user with fields based on data from the update. Add created file to message.files
-				// DONE: TOAI: download file using tgbotapi instsance from chat.client. Generate uniq UUID and use it as a bloKey to store the file using blob storage from chat.deps.Files. Set bloKey to db.File
-				blobKey, err := chat.downloadFile(ctx, tMessage.Document.FileID)
+				// DONE: TOAI: create new db.File for correspnding receiver.user with fields based on data from the update. Add created file to message.files
+				// DONE: TOAI: download file using tgbotapi instsance from receiver.client. Generate uniq UUID and use it as a bloKey to store the file using blob storage from receiver.deps.Files. Set bloKey to db.File
+				blobKey, err := receiver.downloadFile(ctx, tMessage.Document.FileID)
 				if err != nil {
 					lgr.With(logger.ERROR, errors.WithStack(err)).Error("Filed to download document")
 				}
@@ -145,7 +144,7 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 					BlobKey:      blobKey,
 				}
 				message.Files = append(message.Files, file)
-				if err := chat.deps.DBC.Save(&file).Error; err != nil {
+				if err := receiver.deps.DBC.Save(&file).Error; err != nil {
 					lgr.With(logger.ERROR, errors.WithStack(err)).Error("Filed to save file with document")
 					// NOTE: important failure
 				}
@@ -153,12 +152,12 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 
 			if tMessage.Photo != nil {
 				for _, photo := range tMessage.Photo {
-					lgr := chat.deps.Logger.With(logger.TELEGRAM_PHOTO_ID, photo.FileID)
+					lgr := receiver.deps.Logger.With(logger.TELEGRAM_PHOTO_ID, photo.FileID)
 					lgr.Debug("Received photo")
 					// DONE: TOAI: check content of db/models.go .
-					// DONE: TOAI: Create new db.File for correspnding chat.user with fields based on data from the update. Add created file to message.files
-					// DONE: TOAI: download file using tgbotapi instsance from chat.client. Generate uniq UUID and use it as a key to store the file using blob storage from chat.deps.Files. Set key to db.File
-					blobKey, err := chat.downloadFile(ctx, photo.FileID)
+					// DONE: TOAI: Create new db.File for correspnding receiver.user with fields based on data from the update. Add created file to message.files
+					// DONE: TOAI: download file using tgbotapi instsance from receiver.client. Generate uniq UUID and use it as a key to store the file using blob storage from receiver.deps.Files. Set key to db.File
+					blobKey, err := receiver.downloadFile(ctx, photo.FileID)
 					if err != nil {
 						lgr.With(logger.ERROR, errors.WithStack(err)).Error("Filed to download photo")
 					}
@@ -169,7 +168,7 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 						BlobKey:    blobKey,
 					}
 					message.Files = append(message.Files, file)
-					if err := chat.deps.DBC.Save(&file).Error; err != nil {
+					if err := receiver.deps.DBC.Save(&file).Error; err != nil {
 						lgr.With(logger.ERROR, errors.WithStack(err)).Error("Failed to save file with photo")
 						// NOTE: important failure
 					}
@@ -181,28 +180,28 @@ func (chat *Chat) GoReceiveMessages(ctx context.Context) {
 			if message == nil {
 				continue
 			}
-			chat.deps.Logger.Debug("Message built. Initiating response")
+			receiver.deps.Logger.Debug("Message built. Initiating response")
 			responseCtx, cancel := context.WithCancel(ctx)
 			closeF := func() {
-				if chat.responder != nil {
-					chat.responder.deps.Logger.Debug("closing responder")
+				if receiver.responder != nil {
+					receiver.responder.deps.Logger.Debug("closing responder")
 				}
-				chat.responder = nil
+				receiver.responder = nil
 				cancel()
 			}
-			responder := NewResponder(closeF, chat, chat.deps)
-			chat.responder = responder
+			responder := NewResponder(closeF, receiver, receiver.deps)
+			receiver.responder = responder
 			go responder.GoRespond(responseCtx)
 			responder.response <- preResponse
-			chat.deps.Logger.Debug("Sending message request")
-			chat.client.messages <- base.NewMessageRequest(*message, responder.response)
+			receiver.deps.Logger.Debug("Sending message request")
+			receiver.client.messages <- base.NewMessageRequest(*message, responder.response)
 			message = nil
 		}
 	}
 }
 
-func (chat *Chat) downloadFile(ctx context.Context, telegramID string) (blobKey string, _ error) {
-	fileUrl, err := chat.client.tgbot.GetFileDirectURL(telegramID)
+func (receiver *Receiver) downloadFile(ctx context.Context, telegramID string) (blobKey string, _ error) {
+	fileUrl, err := receiver.client.tgbot.GetFileDirectURL(telegramID)
 	if err != nil {
 		return "", fmt.Errorf("getting file direct url: %w", err)
 	}
@@ -214,7 +213,7 @@ func (chat *Chat) downloadFile(ctx context.Context, telegramID string) (blobKey 
 	defer resp.Body.Close()
 
 	blobKey = uuid.New().String()
-	w, err := chat.deps.Files.NewWriter(ctx, blobKey, nil)
+	w, err := receiver.deps.Files.NewWriter(ctx, blobKey, nil)
 	if err != nil {
 		return "", fmt.Errorf("creating new file writer: %w", err)
 	}

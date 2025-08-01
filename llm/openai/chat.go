@@ -25,11 +25,13 @@ func newChat(oClient *openai.Client, lgr *slog.Logger) *Chat {
 const systemPrompt = `You are an accounting helping assistant, which is capable of processing docs, receipts, building statistics and giving advices.`
 
 func (chat *Chat) GoTalk(ctx context.Context, message string, responseChan chan<- string, errorChan chan<- error) {
-	chat.lgr.Debug("")
+	chat.lgr.Debug("starting talking")
 	defer func() {
 		close(responseChan)
 		if err := recover(); err != nil {
 			chat.lgr.With(logger.ERROR, err).Error("failed talking")
+		} else {
+			chat.lgr.Debug("finished talking")
 		}
 	}()
 

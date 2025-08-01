@@ -46,6 +46,10 @@ func (chatter *Chatter) Run(ctx context.Context) {
 func (chatter *Chatter) goHandleMessageRequest(ctx context.Context, messageRequest *base.MessageRequest) {
 	chatter.deps.Logger.Debug(fmt.Sprintf("received message MessageRequest files %d", len(messageRequest.Message.Files)))
 	chatter.deps.Logger.Debug(fmt.Sprintf("received message MessageRequest %v", messageRequest.Message))
+
+	// llm.GoTalk
+
 	messageRequest.Response <- "handled"
+
 	close(messageRequest.Response)
 }

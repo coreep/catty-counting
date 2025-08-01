@@ -18,9 +18,9 @@ const (
 )
 
 type Client struct {
-	tgbot    *tgbotapi.BotAPI
-	chats    map[int64]*Chat
-	messages chan *base.MessageRequest
+	tgbot           *tgbotapi.BotAPI
+	receiverPerUser map[int64]*Receiver
+	messages        chan *base.MessageRequest
 
 	deps deps.Deps
 }
@@ -39,7 +39,7 @@ func CreateClient(deps deps.Deps) (base.Client, error) {
 		tgbot.Debug = true
 	}
 
-	return &Client{tgbot: tgbot, messages: make(chan *base.MessageRequest), deps: deps, chats: make(map[int64]*Chat)}, nil
+	return &Client{tgbot: tgbot, messages: make(chan *base.MessageRequest), deps: deps, receiverPerUser: make(map[int64]*Receiver)}, nil
 }
 
 func (client *Client) GoTalk(ctx context.Context) {
@@ -61,28 +61,28 @@ func (client *Client) handleUpdates(ctx context.Context) {
 	for update := range updates {
 		client.deps.Logger.With("update", update).Debug("bot received update")
 
-		chat := client.chatFor(ctx, update.Message.From.ID)
-		chat.updates <- update
+		receiver := client.receiverFor(ctx, update.Message.From.ID)
+		receiver.updates <- update
 	}
 }
 
-func (client *Client) chatFor(ctx context.Context, userID int64) *Chat {
-	chat, ok := client.chats[userID]
-	if !ok || chat == nil {
-		client.deps.Logger.Debug("building new chat")
-		chatCtx, cancel := context.WithCancel(ctx)
+func (client *Client) receiverFor(ctx context.Context, userID int64) *Receiver {
+	handler, ok := client.receiverPerUser[userID]
+	if !ok || handler == nil {
+		client.deps.Logger.Debug("building new handler")
+		handlerCtx, cancel := context.WithCancel(ctx)
 		closeF := func() {
-			if client.chats[userID] != nil {
-				client.chats[userID].deps.Logger.Debug("Closing chat")
+			if client.receiverPerUser[userID] != nil {
+				client.receiverPerUser[userID].deps.Logger.Debug("Closing handler")
 			}
-			client.chats[userID] = nil
+			client.receiverPerUser[userID] = nil
 			cancel()
 		}
-		chat = NewChat(userID, closeF, client, client.deps)
-		client.chats[userID] = chat
-		go chat.GoReceiveMessages(chatCtx)
+		handler = NewReceiver(userID, closeF, client, client.deps)
+		client.receiverPerUser[userID] = handler
+		go handler.GoReceiveMessages(handlerCtx)
 	} else {
-		client.deps.Logger.Debug("utilizing existing chat")
+		client.deps.Logger.Debug("utilizing existing handler")
 	}
-	return chat
+	return handler
 }

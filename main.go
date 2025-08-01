@@ -37,13 +37,13 @@ func main() {
 
 	var wg sync.WaitGroup
 	d := deps.Deps{Logger: lgr, DBC: dbc, Files: files}
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		chatter.NewChatter(msgc, llmc, d).Run(ctx)
 	}()
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		api.NewApi(d).Run(ctx)
 	}()
