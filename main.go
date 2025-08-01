@@ -5,14 +5,16 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 
+	"github.com/EPecherkin/catty-counting/api"
+	"github.com/EPecherkin/catty-counting/chatter"
 	"github.com/EPecherkin/catty-counting/config"
 	"github.com/EPecherkin/catty-counting/db"
 	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/llm"
 	"github.com/EPecherkin/catty-counting/logger"
 	"github.com/EPecherkin/catty-counting/messenger"
-	"github.com/EPecherkin/catty-counting/server"
 	"github.com/pkg/errors"
 	"gocloud.dev/blob"
 	_ "gocloud.dev/blob/fileblob"
@@ -33,18 +35,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	mode := "server"
-	if len(os.Args) > 1 {
-		mode = os.Args[1]
-	}
-	lgr.Info("running in '" + mode + "' mode")
+	var wg sync.WaitGroup
+	d := deps.Deps{Logger: lgr, DBC: dbc, Files: files}
+	go func() {
+		wg.Add(1)
+		defer wg.Done()
+		chatter.NewChatter(msgc, llmc, d).Run(ctx)
+	}()
+	go func() {
+		wg.Add(1)
+		defer wg.Done()
+		api.NewApi(d).Run(ctx)
+	}()
 
-	switch mode {
-	case "server":
-		server.NewServer(msgc, llmc, deps.Deps{Logger: lgr, DBC: dbc, Files: files}).Run(ctx)
-	default:
-		fmt.Println("unknown mode: " + mode)
-	}
+	wg.Wait()
 }
 
 func initialize(ctx context.Context) (lgr *slog.Logger, databaseConnection *gorm.DB, filesBucket *blob.Bucket, _ llm.Client, _ messenger.Client, _ error) {

@@ -36,3 +36,6 @@ uploads/
 /.blackbox/pubring.gpg~
 /.blackbox/pubring.kbx~
 /.blackbox/secring.gpg
+
+installation_id
+settings.json

@@ -9,8 +9,12 @@ import (
 )
 
 var (
-	logLevel      string
-	fileBucket    string
+	logLevel   string
+
+	fileBucket string
+
+	apiPort string
+
 	geminiApiKey  string
 	openAiApiKey  string
 	telegramToken string
@@ -24,6 +28,11 @@ func Init() error {
 	logLevel = os.Getenv("LOG_LEVEL")
 	if logLevel == "" {
 		logLevel = "info"
+	}
+
+	apiPort = os.Getenv("API_PORT")
+	if apiPort == "" {
+		apiPort = "8080"
 	}
 
 	checkAndSet := map[string]*string{
@@ -56,6 +65,10 @@ func LogDebug() bool {
 
 func FileBucket() string {
 	return fileBucket
+}
+
+func ApiPort() string {
+	return apiPort
 }
 
 func GeminiApiKey() string {
