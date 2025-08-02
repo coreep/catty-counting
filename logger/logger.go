@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path"
 	"runtime"
 	"strings"
 
@@ -125,4 +126,21 @@ func traceLines(frames errors.StackTrace) []string {
 	}
 
 	return traceLines[:len(traceLines)-skipped]
+}
+
+func currentPackage() string {
+	pc, file, _, ok := runtime.Caller(1) // 1 = caller of this function
+	if !ok {
+		return ""
+	}
+
+	funcName := runtime.FuncForPC(pc).Name()
+	// Example: "github.com/user/project/pkg/subpkg.Function"
+	dir := path.Dir(file) // filesystem path
+
+	// Extract package path from func name (strip function name)
+	lastSlash := strings.LastIndex(funcName, ".")
+	pkgPath := funcName[:lastSlash]
+
+	return fmt.Sprintf("pkg=%s\nfile=%s", pkgPath, dir)
 }

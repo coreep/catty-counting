@@ -12,7 +12,7 @@ import (
 )
 
 type Chatter struct {
-	chatter messenger.Client
+	messengerc messenger.Client
 	llmc llm.Client
 
 	deps deps.Deps
@@ -22,7 +22,7 @@ func NewChatter(msgc messenger.Client, llmc llm.Client, deps deps.Deps) *Chatter
 	deps.Logger = deps.Logger.With(logger.CALLER, "chatter")
 	deps.Logger.Debug("Creating chatter")
 	return &Chatter{
-		chatter: msgc,
+		messengerc: msgc,
 		llmc: llmc,
 		deps: deps,
 	}
@@ -31,10 +31,11 @@ func NewChatter(msgc messenger.Client, llmc llm.Client, deps deps.Deps) *Chatter
 func (chatter *Chatter) Run(ctx context.Context) {
 	chatter.deps.Logger.Debug("Running chatter")
 
-	go chatter.chatter.GoTalk(ctx)
+	go chatter.messengerc.GoListen(ctx)
 	for {
 		select {
-		case messageRequest := <-chatter.chatter.Messages():
+		case messageRequest := <-chatter.messengerc.Messages():
+			// TODO: TOAI: instead of a method, create a new Chat, simmilar to messenger/telegram/receiver.go
 			go chatter.goHandleMessageRequest(ctx, messageRequest)
 		case <-ctx.Done():
 			chatter.deps.Logger.Info("Chatter message wait interrupted")

@@ -21,6 +21,7 @@ type Api struct {
 }
 
 func NewApi(deps deps.Deps) *Api {
+	deps.Logger = deps.Logger.With(logger.CALLER, "api.api")
 	return &Api{deps: deps}
 }
 

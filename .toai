@@ -2,7 +2,7 @@
 
 This project is an Accounting Assistance.
 
-# Additional instructions on how to work with this project.
+# Additional instructions on how to work with this project
 
 Each file named `.toai` contains additional context or instructions. It uses Markdown syntax, using headings for your better understanding of context. For each directory - read `.toai` located in that directory.
 Instructions are defined only like `TODO: TOAI: you should run such instruction`
@@ -13,30 +13,37 @@ Ask before running any instruction.
 
 Write code in the same style as the code of the project. Before adding new files to a directory - check 3 files in that directory. If there are no such files - ask how should you proceed.
 
-  * Use a consistent naming convention for packages and files.
-  * Use prepared statements to prevent SQL injection.
+* Use a consistent naming convention for packages and files.
+* Use prepared statements to prevent SQL injection.
 
-## We are following pattern "Command".
+## We are following pattern "Command"
 
 Main points:
 
-  - A lot of logic paths can be described as chain of Commands.
-  - Command is represented as an instance, that is capable to store state and dependencies for execution of a Command.
-  - Command can use a Client to perform actions with external entities, like DataBases, APIs, File Management Systems, etc.
-  - Client has an instance too, but its state is considered to be immutable after execution.
-  - Commands receive parameters as a list of arguments during initialization.
-  - Commands receive and store necessary clients as `deps` field on the instance.
+* A lot of logic paths can be described as chain of Commands.
+* Command is represented as an instance, that is capable to store state and dependencies for execution of a Command.
+* Command can use a Client to perform actions with external entities, like DataBases, APIs, File Management Systems, etc.
+* Client has an instance too, but its state is considered to be immutable after execution.
+* Commands receive parameters as a list of arguments during initialization.
+* Commands receive and store necessary clients as `deps` field on the instance.
 
 ## Logging
 
-  * Use structured logging with slog.Logger.
-  * Add contextual information to logs.
-  * Use field name constants taken from logger/logger.go, add new if necessary.
-  * Avoid logging sensitive information.
-  * Pass logger as a dependency to commands/clients.
+* Use structured logging with slog.Logger.
+* Add contextual information to logs.
+* Use field name constants taken from logger/logger.go, add new if necessary.
+* Avoid logging sensitive information.
+* Pass logger as a dependency to commands/clients.
 
 ## How to handle errors
 
-  * Use `fmt.Errorf` when propagating the error.
-  * Write an error message in a story-telling fashion, like `fmt.Errorf("downloading file: %w", err)`.
-  * When create an error or wrap error coming from an external source, add stacktrace with `errors.WithStack`.
+* Use `fmt.Errorf` when propagating the error.
+* Write an error message in a story-telling fashion, like `fmt.Errorf("downloading file: %w", err)`.
+* When create an error or wrap error coming from an external source, add stacktrace with `errors.WithStack`.
+
+## Logging
+
+* We use `slog.Logger`.
+* To add a field to log's context - use `With("key", value)` method. Chain multiple `With` to provide more context.
+* Regularly used keys should be placed as constants to `logger/logger.go`.
+* Write debug logs for noticeable events in code. Write info logs for noticeable events in domain logic. Write error logs for errors that break domain logic flow.

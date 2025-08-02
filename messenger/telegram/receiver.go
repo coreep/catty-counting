@@ -82,13 +82,6 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 
 	for {
 		select {
-		case <-ctx.Done():
-			lgr := receiver.deps.Logger
-			if err := ctx.Err(); err != nil {
-				lgr = lgr.With(logger.ERROR, errors.WithStack(err))
-			}
-			lgr.Debug("telegram receiver context closed")
-			return
 		case update := <-receiver.updates:
 			tMessage := update.Message
 			receiver.deps.Logger = receiver.deps.Logger.
@@ -196,6 +189,13 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 			receiver.deps.Logger.Debug("Sending message request")
 			receiver.client.messages <- base.NewMessageRequest(*message, responder.response)
 			message = nil
+		case <-ctx.Done():
+			lgr := receiver.deps.Logger
+			if err := ctx.Err(); err != nil {
+				lgr = lgr.With(logger.ERROR, errors.WithStack(err))
+			}
+			lgr.Debug("telegram receiver context closed")
+			return
 		}
 	}
 }

@@ -19,6 +19,6 @@ func NewMessageRequest(message db.Message, response chan <- string) *MessageRequ
 }
 
 type Client interface {
-	GoTalk(ctx context.Context)
+	GoListen(ctx context.Context)
 	Messages() <-chan *MessageRequest
 }

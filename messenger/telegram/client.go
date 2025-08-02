@@ -18,7 +18,8 @@ const (
 )
 
 type Client struct {
-	tgbot           *tgbotapi.BotAPI
+	tgbot *tgbotapi.BotAPI
+	// db.User.TelegramID to Receiver. TODO:change to db.User.ID
 	receiverPerUser map[int64]*Receiver
 	messages        chan *base.MessageRequest
 
@@ -42,7 +43,7 @@ func CreateClient(deps deps.Deps) (base.Client, error) {
 	return &Client{tgbot: tgbot, messages: make(chan *base.MessageRequest), deps: deps, receiverPerUser: make(map[int64]*Receiver)}, nil
 }
 
-func (client *Client) GoTalk(ctx context.Context) {
+func (client *Client) GoListen(ctx context.Context) {
 	client.deps.Logger.Debug("Running client")
 
 	client.handleUpdates(ctx)
