@@ -177,12 +177,11 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 				receiver.responder = nil
 				cancel()
 			}
-			responder := NewResponder(closeF, receiver, receiver.deps)
+			responder := NewResponder(closeF, *message, receiver.onMessage, receiver, receiver.deps)
 			receiver.responder = responder
 			go responder.GoRespond(responseCtx)
 			responder.response <- preResponse
-			receiver.deps.Logger.Debug("Sending message request")
-			go receiver.onMessage(ctx, *message, responder.response)
+			receiver.deps.Logger.Debug("responder started working")
 			message = nil
 		case <-ctx.Done():
 			lgr := receiver.deps.Logger

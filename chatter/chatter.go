@@ -18,7 +18,7 @@ type Chatter struct {
 }
 
 func NewChatter(msgc messenger.Client, llmc llm.Client, deps deps.Deps) *Chatter {
-	deps.Logger = deps.Logger.With(logger.CALLER, "chatter")
+	deps.Logger = deps.Logger.With(logger.CALLER, "Chatter")
 	deps.Logger.Debug("Creating chatter")
 	return &Chatter{messengerc: msgc, llmc: llmc, deps: deps}
 }

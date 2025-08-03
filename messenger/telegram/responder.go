@@ -6,8 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/EPecherkin/catty-counting/db"
 	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/logger"
+	"github.com/EPecherkin/catty-counting/messenger/base"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
 )
@@ -18,8 +20,10 @@ const (
 )
 
 type Responder struct {
-	message *tgbotapi.Message
-	close   func()
+	message   db.Message
+	onMessage base.OnMessageCallback
+
+	close func()
 
 	response chan string
 
@@ -28,10 +32,10 @@ type Responder struct {
 	deps deps.Deps
 }
 
-func NewResponder(close func(), receiver *Receiver, deps deps.Deps) *Responder {
+func NewResponder(close func(), message db.Message, onMessage base.OnMessageCallback, receiver *Receiver, deps deps.Deps) *Responder {
 	deps.Logger = deps.Logger.With(logger.CALLER, "messenger.telegram.Responder")
 
-	return &Responder{close: close, receiver: receiver, deps: deps, response: make(chan string)}
+	return &Responder{close: close, message: message, onMessage: onMessage, receiver: receiver, deps: deps, response: make(chan string)}
 }
 
 func (resp *Responder) GoRespond(ctx context.Context) {
@@ -56,6 +60,8 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 	defer updater.Stop()
 	lastUpdate := time.Now()
 
+	go resp.goOnMessage(ctx)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -74,7 +80,7 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 				}
 				return
 			}
-			resp.deps.Logger.Debug("attaching chunk to response message")
+			resp.deps.Logger.With("chunk", chunk).Debug("attaching chunk to response message")
 			responseText += chunk
 		case <-updater.C:
 			if responseText != sentText {
@@ -93,6 +99,18 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func (resp *Responder) goOnMessage(ctx context.Context) {
+	defer func() {
+		close(resp.response)
+		if err := recover(); err != nil {
+			resp.deps.Logger.With(logger.ERROR, err).Error("failed to process onMessage")
+		} else {
+			resp.deps.Logger.Debug("goOnMessage finished")
+		}
+	}()
+	resp.onMessage(ctx, resp.message, resp.response)
 }
 
 func (resp *Responder) sendMessage(text string) (*tgbotapi.Message, error) {

@@ -19,7 +19,7 @@ type Chat struct {
 }
 
 func newChat(oClient *openai.Client, deps deps.Deps) *Chat {
-	deps.Logger = deps.Logger.With(logger.CALLER, "openai chat")
+	deps.Logger = deps.Logger.With(logger.CALLER, "openai.Chat")
 	deps.Logger.Debug("Creating openai chat")
 	return &Chat{oClient: oClient, deps: deps}
 }
@@ -30,7 +30,6 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 	lgr := chat.deps.Logger.With(logger.USER_ID, message.UserID, logger.MESSAGE_ID, message.ID)
 	lgr.Debug("starting talking")
 	defer func() {
-		close(responseChan)
 		if err := recover(); err != nil {
 			lgr.With(logger.ERROR, err).Error("failed talking")
 		} else {
@@ -52,15 +51,10 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 		Messages: chat.history,
 	}
 
-	stream, err := chat.oClient.Chat.Completions.NewStreaming(ctx, params)
-	if err != nil {
-		lgr.With(logger.ERROR, err).Error("failed to start streaming")
-		responseChan <- "Internal error: failed to start chat."
-		return
-	}
+	stream := chat.oClient.Chat.Completions.NewStreaming(ctx, params)
 	defer func() {
 		if err := stream.Close(); err != nil {
-			lgr.With(logger.ERROR, errors.WithStack(err)).Error("failed to close stream")
+			lgr.With(logger.ERROR, errors.WithStack(err)).Error("failed to close talking stream")
 		}
 	}()
 
