@@ -35,7 +35,6 @@ func (chatter *Chatter) Run(ctx context.Context) {
 	for {
 		select {
 		case messageRequest := <-chatter.messengerc.Messages():
-			// TODO: TOAI: instead of a method, create a new Chat, simmilar to messenger/telegram/receiver.go
 			go chatter.goHandleMessageRequest(ctx, messageRequest)
 		case <-ctx.Done():
 			chatter.deps.Logger.Info("Chatter message wait interrupted")
