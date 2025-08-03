@@ -5,10 +5,6 @@ import (
 	"github.com/EPecherkin/catty-counting/messenger/telegram"
 )
 
-type MessageRequest struct {
-	base.MessageRequest
-}
-
 type Client interface {
 	base.Client
 }

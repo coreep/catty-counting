@@ -2,13 +2,6 @@
 
 This project is an Accounting Assistance.
 
-# Additional instructions on how to work with this project
-
-Each file named `.toai` contains additional context or instructions. It uses Markdown syntax, using headings for your better understanding of context. For each directory - read `.toai` located in that directory.
-Instructions are defined only like `TODO: TOAI: you should run such instruction`
-Execute every instruction. After it is executed - replace `TODO` with `DONE` to mark it completed. Example: `DONE: TOAI: this instruction should be skipped because it is executed`.
-Ask before running any instruction.
-
 # CodeStyle requirements
 
 Write code in the same style as the code of the project. Before adding new files to a directory - check 3 files in that directory. If there are no such files - ask how should you proceed.

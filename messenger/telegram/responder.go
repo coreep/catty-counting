@@ -14,7 +14,7 @@ import (
 
 const (
 	EDIT_INTERVAL      = 2 * time.Second
-	THINKING_THRESHOLD = 4 * time.Second
+	THINKING_THRESHOLD = 1 * time.Second
 )
 
 type Responder struct {
@@ -43,7 +43,7 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 		resp.close()
 	}()
 
-	responseMessage, err := resp.sendMessage("(Thinking...)")
+	responseMessage, err := resp.sendMessage("Thinking...")
 	if err != nil {
 		resp.deps.Logger.With(logger.ERROR, err).Error("Failed to send initial message")
 		return
@@ -85,7 +85,7 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 					return
 				}
 			} else if since := time.Since(lastUpdate); since > THINKING_THRESHOLD {
-				dots := strings.Repeat(".", 1+int(since.Seconds())%int(3*THINKING_THRESHOLD.Seconds()))
+				dots := strings.Repeat(".", 1+int(since.Seconds())%3)
 				thinking := "\n(Thinking" + dots + ")"
 				if err = resp.editMessage(responseMessage, responseText+thinking); err != nil {
 					resp.deps.Logger.With(logger.ERROR, err).Error("Failed to update thinking")
@@ -107,6 +107,9 @@ func (resp *Responder) sendMessage(text string) (*tgbotapi.Message, error) {
 }
 
 func (resp *Responder) editMessage(message *tgbotapi.Message, text string) error {
+	if message.Text == text {
+		return nil
+	}
 	editMsg := tgbotapi.NewEditMessageText(message.Chat.ID, message.MessageID, text)
 	_, err := resp.receiver.client.tgbot.Send(editMsg)
 	if err != nil {

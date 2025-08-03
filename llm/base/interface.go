@@ -2,13 +2,10 @@ package base
 
 import (
 	"context"
-	"log/slog"
+
+	"github.com/EPecherkin/catty-counting/db"
 )
 
 type Client interface {
-	CreateChat(ctx context.Context, lgr *slog.Logger) (Chat, error)
-}
-
-type Chat interface {
-	GoTalk(ctx context.Context, message string, responseChan chan<- string, errorChan chan<- error)
+	HandleMessage(ctx context.Context, message db.Message, response chan<- string)
 }

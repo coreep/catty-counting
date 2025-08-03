@@ -9,8 +9,4 @@ type Client interface {
 	base.Client
 }
 
-type Chat interface {
-	base.Chat
-}
-
 var CreateOpenaiClient = openai.CreateClient

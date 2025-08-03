@@ -13,15 +13,16 @@ import (
 )
 
 const (
-	TIMEOUT = 60
-	OFFSET  = 0
+	TIMEOUT         = 60
+	OFFSET          = 0
+	RECEIVER_BUFFER = 100
 )
 
 type Client struct {
 	tgbot *tgbotapi.BotAPI
 	// db.User.TelegramID to Receiver. TODO:change to db.User.ID
 	receiverPerUser map[int64]*Receiver
-	messages        chan *base.MessageRequest
+	onMessage       base.OnMessageCallback
 
 	deps deps.Deps
 }
@@ -40,17 +41,17 @@ func CreateClient(deps deps.Deps) (base.Client, error) {
 		tgbot.Debug = true
 	}
 
-	return &Client{tgbot: tgbot, messages: make(chan *base.MessageRequest), deps: deps, receiverPerUser: make(map[int64]*Receiver)}, nil
+	return &Client{tgbot: tgbot, deps: deps, receiverPerUser: make(map[int64]*Receiver, RECEIVER_BUFFER)}, nil
 }
 
-func (client *Client) GoListen(ctx context.Context) {
-	client.deps.Logger.Debug("Running client")
+func (client *Client) OnMessage(callback base.OnMessageCallback) {
+	client.onMessage = callback
+}
 
+func (client *Client) Listen(ctx context.Context) {
+	client.deps.Logger.Debug("Running telegram client")
 	client.handleUpdates(ctx)
-}
-
-func (client *Client) Messages() <-chan *base.MessageRequest {
-	return client.messages
+	client.deps.Logger.Debug("Telegram client finished")
 }
 
 func (client *Client) handleUpdates(ctx context.Context) {
@@ -79,7 +80,7 @@ func (client *Client) receiverFor(ctx context.Context, userID int64) *Receiver {
 			client.receiverPerUser[userID] = nil
 			cancel()
 		}
-		handler = NewReceiver(userID, closeF, client, client.deps)
+		handler = NewReceiver(userID, closeF, client, client.onMessage, client.deps)
 		client.receiverPerUser[userID] = handler
 		go handler.GoReceiveMessages(handlerCtx)
 	} else {

@@ -25,6 +25,7 @@ type Receiver struct {
 	telegramUserID int64
 	close          func()
 	client         *Client
+	onMessage      base.OnMessageCallback
 
 	updates chan tgbotapi.Update
 	user    db.User
@@ -34,9 +35,9 @@ type Receiver struct {
 	deps deps.Deps
 }
 
-func NewReceiver(tUserID int64, closeF func(), client *Client, deps deps.Deps) *Receiver {
+func NewReceiver(tUserID int64, closeF func(), client *Client, onMessage base.OnMessageCallback, deps deps.Deps) *Receiver {
 	deps.Logger = deps.Logger.With(logger.CALLER, "messenger.telegram.Receiver").With(logger.TELEGRAM_USER_ID, tUserID)
-	return &Receiver{telegramUserID: tUserID, close: closeF, client: client, updates: make(chan tgbotapi.Update), deps: deps}
+	return &Receiver{telegramUserID: tUserID, close: closeF, client: client, onMessage: onMessage, updates: make(chan tgbotapi.Update), deps: deps}
 }
 
 func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
@@ -51,7 +52,7 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 	}()
 
 	var user db.User
-	if err := receiver.deps.DBC.Find(user, db.User{TelegramID: receiver.telegramUserID}).Error; err != nil {
+	if err := receiver.deps.DBC.First(&user, db.User{TelegramID: receiver.telegramUserID}).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			receiver.deps.Logger.With(logger.ERROR, err).Error("Failed to query user")
 			return
@@ -181,7 +182,7 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 			go responder.GoRespond(responseCtx)
 			responder.response <- preResponse
 			receiver.deps.Logger.Debug("Sending message request")
-			receiver.client.messages <- base.NewMessageRequest(*message, responder.response)
+			go receiver.onMessage(ctx, *message, responder.response)
 			message = nil
 		case <-ctx.Done():
 			lgr := receiver.deps.Logger

@@ -68,7 +68,7 @@ func initialize(ctx context.Context) (lgr *slog.Logger, databaseConnection *gorm
 		return lgr, nil, nil, nil, nil, fmt.Errorf("initializing file blob: %w", errors.WithStack(err))
 	}
 
-	llmc, err := llm.CreateOpenaiClient(ctx, lgr)
+	llmc, err := llm.CreateOpenaiClient(deps.Deps{Logger: lgr, DBC: dbc, Files: files})
 	if err != nil {
 		return lgr, nil, nil, nil, nil, fmt.Errorf("initializing llm client: %w", err)
 	}

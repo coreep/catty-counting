@@ -32,7 +32,7 @@ func (a *Api) Run(ctx context.Context) {
 	router.GET("/api/file/:key", a.provideFile)
 
 	a.deps.Logger.Info("Starting API server on port " + config.ApiPort())
-	// TODO: handle graceful shutdown
+	// TODO: handle graceful shutdown; context
 	if err := router.Run(":" + config.ApiPort()); err != nil {
 		a.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Error("Api failed")
 	}
