@@ -121,9 +121,6 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 			if tMessage.Document != nil {
 				lgr := receiver.deps.Logger.With(logger.TELEGRAM_DOCUMENT_ID, tMessage.Document.FileID)
 				lgr.Debug("Received document")
-				// DONE: TOAI: check content of db/models.go .
-				// DONE: TOAI: create new db.File for correspnding receiver.user with fields based on data from the update. Add created file to message.files
-				// DONE: TOAI: download file using tgbotapi instsance from receiver.client. Generate uniq UUID and use it as a bloKey to store the file using blob storage from receiver.deps.Files. Set bloKey to db.File
 				blobKey, err := receiver.downloadFile(ctx, tMessage.Document.FileID)
 				if err != nil {
 					lgr.With(logger.ERROR, errors.WithStack(err)).Error("Filed to download document")
@@ -147,9 +144,6 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 				for _, photo := range tMessage.Photo {
 					lgr := receiver.deps.Logger.With(logger.TELEGRAM_PHOTO_ID, photo.FileID)
 					lgr.Debug("Received photo")
-					// DONE: TOAI: check content of db/models.go .
-					// DONE: TOAI: Create new db.File for correspnding receiver.user with fields based on data from the update. Add created file to message.files
-					// DONE: TOAI: download file using tgbotapi instsance from receiver.client. Generate uniq UUID and use it as a key to store the file using blob storage from receiver.deps.Files. Set key to db.File
 					blobKey, err := receiver.downloadFile(ctx, photo.FileID)
 					if err != nil {
 						lgr.With(logger.ERROR, errors.WithStack(err)).Error("Filed to download photo")
