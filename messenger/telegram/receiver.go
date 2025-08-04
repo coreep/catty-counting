@@ -102,7 +102,7 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 
 			if message == nil {
 				receiver.deps.Logger.Debug("building new message")
-				message = &db.Message{UserID: receiver.user.ID, TelegramIDs: []int{tMessage.MessageID}}
+				message = &db.Message{UserID: receiver.user.ID, TelegramIDs: []int{tMessage.MessageID}, Direction: db.MessageDirectionFromUser}
 				if err := receiver.deps.DBC.Create(message).Error; err != nil {
 					receiver.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Error("Failed to create message")
 					// NOTE: important failure

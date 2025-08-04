@@ -4,11 +4,13 @@ import (
 	"gorm.io/gorm"
 )
 
-type MessageSource string
+type MessageDirection string
 
 const (
-	MessageSourceUser MessageSource = "user"
-	MessageSourceLlm  MessageSource = "llm"
+	MessageDirectionFromUser    MessageDirection = "from-user"
+	MessageDirectionToUser      MessageDirection = "to-user"
+	MessageDirectionSystemToLlm MessageDirection = "system-to-llm"
+	MessageDirectionLlmToUser   MessageDirection = "llm-to-system"
 )
 
 type User struct {
@@ -30,11 +32,11 @@ type Chat struct {
 
 type Message struct {
 	gorm.Model
-	UserID      uint          `gorm:"index"`
-	ChatID      uint          `gorm:"index"`
-	Text        string        `gorm:"type:text"`
-	TelegramIDs []int         `gorm:"serializer:json"`
-	Source      MessageSource `gorm:"type:varchar(16);default:'user'"`
+	UserID      uint             `gorm:"index"`
+	ChatID      uint             `gorm:"index"`
+	Text        string           `gorm:"type:text"`
+	TelegramIDs []int            `gorm:"serializer:json"`
+	Direction   MessageDirection `gorm:"type:varchar(16)"`
 	User        User
 	Chat        Chat
 	Files       []File

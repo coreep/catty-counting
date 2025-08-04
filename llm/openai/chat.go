@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/EPecherkin/catty-counting/config"
 	"github.com/EPecherkin/catty-counting/db"
 	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/logger"
@@ -39,7 +40,11 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 
 	if err := chat.loadHistory(message.UserID); err != nil {
 		lgr.With(logger.ERROR, err).Error("failed to load history")
-		responseChan <- "Internal error: failed to load message history."
+		if config.LogDebug() {
+			responseChan <- fmt.Sprintf("failed to load history: %+v", err)
+		} else {
+			responseChan <- "Sorry, something went wrong"
+		}
 		return
 	}
 
@@ -86,14 +91,18 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 
 	if err := stream.Err(); err != nil {
 		lgr.With(logger.ERROR, errors.WithStack(err)).Error("stream error")
-		responseChan <- "Internal error: chat stream failed."
+		if config.LogDebug() {
+			responseChan <- fmt.Sprintf("stream error: %+v", err)
+		} else {
+			responseChan <- "Sorry, something went wrong"
+		}
 		return
 	}
 
 	responseMessage := db.Message{
-		UserID: message.UserID,
-		Text:   responseBuilder.String(),
-		Source: db.MessageSourceLlm,
+		UserID:    message.UserID,
+		Text:      responseBuilder.String(),
+		Direction: db.MessageDirectionToUser,
 	}
 	if err := chat.deps.DBC.Create(&responseMessage).Error; err != nil {
 		lgr.With(logger.ERROR, errors.WithStack(err)).Error("failed to save llm response")
@@ -110,7 +119,7 @@ func (chat *Chat) loadHistory(userID uint) error {
 
 	var messages []db.Message
 	if err := chat.deps.DBC.Where("user_id = ?", userID).Order("created_at asc").Find(&messages).Error; err != nil {
-		return fmt.Errorf("loading messages from db: %w", err)
+		return fmt.Errorf("loading messages from db: %w", errors.WithStack(err))
 	}
 
 	chat.history = []openai.ChatCompletionMessageParamUnion{
@@ -118,7 +127,7 @@ func (chat *Chat) loadHistory(userID uint) error {
 	}
 
 	for _, msg := range messages {
-		if msg.Source == db.MessageSourceUser {
+		if msg.Direction == db.MessageDirectionFromUser {
 			chat.history = append(chat.history, openai.UserMessage(chat.buildContent(msg)))
 		} else {
 			chat.history = append(chat.history, openai.AssistantMessage(msg.Text))
