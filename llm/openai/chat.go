@@ -28,23 +28,18 @@ func newChat(oClient *openai.Client, deps deps.Deps) *Chat {
 const systemPrompt = `You are an accounting helping assistant, which is capable of processing docs, receipts, building statistics and giving advices.`
 
 func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan chan<- string) {
-	lgr := chat.deps.Logger.With(logger.USER_ID, message.UserID, logger.MESSAGE_ID, message.ID)
-	lgr.Debug("starting talking")
+	chat.deps.Logger = chat.deps.Logger.With(logger.USER_ID, message.UserID, logger.MESSAGE_ID, message.ID)
+	chat.deps.Logger.Debug("starting talking")
 	defer func() {
 		if err := recover(); err != nil {
-			lgr.With(logger.ERROR, err).Error("failed talking")
+			chat.deps.Logger.With(logger.ERROR, err).Error("failed talking")
 		} else {
-			lgr.Debug("finished talking")
+			chat.deps.Logger.Debug("finished talking")
 		}
 	}()
 
 	if err := chat.loadHistory(message.UserID); err != nil {
-		lgr.With(logger.ERROR, err).Error("failed to load history")
-		if config.LogDebug() {
-			responseChan <- fmt.Sprintf("failed to load history: %+v", err)
-		} else {
-			responseChan <- "Sorry, something went wrong"
-		}
+		responseChan <- chat.handleError(err, "failed to load history")
 		return
 	}
 
@@ -59,7 +54,7 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 	stream := chat.oClient.Chat.Completions.NewStreaming(ctx, params)
 	defer func() {
 		if err := stream.Close(); err != nil {
-			lgr.With(logger.ERROR, errors.WithStack(err)).Error("failed to close talking stream")
+			chat.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Error("failed to close talking stream")
 		}
 	}()
 
@@ -70,17 +65,17 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 		acc.AddChunk(chunk)
 
 		if _, ok := acc.JustFinishedContent(); ok {
-			lgr.Debug("stream finished")
+			chat.deps.Logger.Debug("stream finished")
 			break
 		}
 
 		if tool, ok := acc.JustFinishedToolCall(); ok {
-			lgr.Debug(fmt.Sprintf("took call finished %v %v %v", tool.Index, tool.Name, tool.Arguments))
+			chat.deps.Logger.Debug(fmt.Sprintf("took call finished %v %v %v", tool.Index, tool.Name, tool.Arguments))
 			break
 		}
 
 		if refusal, ok := acc.JustFinishedRefusal(); ok {
-			lgr.Debug(fmt.Sprintf("refusal finisheds %v", refusal))
+			chat.deps.Logger.Debug(fmt.Sprintf("refusal finisheds %v", refusal))
 			break
 		}
 
@@ -90,12 +85,7 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 	}
 
 	if err := stream.Err(); err != nil {
-		lgr.With(logger.ERROR, errors.WithStack(err)).Error("stream error")
-		if config.LogDebug() {
-			responseChan <- fmt.Sprintf("stream error: %+v", err)
-		} else {
-			responseChan <- "Sorry, something went wrong"
-		}
+		responseChan <- chat.handleError(err, "stream error")
 		return
 	}
 
@@ -105,7 +95,7 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 		Direction: db.MessageDirectionToUser,
 	}
 	if err := chat.deps.DBC.Create(&responseMessage).Error; err != nil {
-		lgr.With(logger.ERROR, errors.WithStack(err)).Error("failed to save llm response")
+		chat.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Error("failed to save llm response")
 	}
 
 	assistantMessage := openai.AssistantMessage(responseMessage.Text)
@@ -155,4 +145,13 @@ func (chat *Chat) buildContent(message db.Message) []openai.ChatCompletionConten
 	// }
 
 	return content
+}
+
+func (chat *Chat) handleError(err error, details string) string {
+	chat.deps.Logger.With(logger.ERROR, err).Error(details)
+	if config.LogDebug() {
+		return fmt.Sprintf(details + ": %+v", err)
+	} else {
+		return "Sorry, something went wrong"
+	}
 }

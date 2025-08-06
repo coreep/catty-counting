@@ -85,15 +85,16 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 		select {
 		case update := <-receiver.updates:
 			tMessage := update.Message
-			receiver.deps.Logger = receiver.deps.Logger.
+			lgr := receiver.deps.Logger.
 				With(logger.TELEGRAM_UPDATE_ID, update.UpdateID).
 				With(logger.TELEGRAM_CHAT_ID, tMessage.Chat.ID).
 				With(logger.TELEGRAM_MESSAGE_ID, tMessage.MessageID)
 
 			if receiver.responder != nil {
-				receiver.deps.Logger.Info("receiver received update during another exchange. Interrupting...")
+				lgr.Info("receiver received update during another exchange. Interrupting...")
 				receiver.responder.close()
 			}
+			receiver.deps.Logger = lgr
 
 			if tMessage.Audio != nil || len(tMessage.Entities) > 0 || tMessage.Voice != nil || tMessage.Video != nil || tMessage.VideoNote != nil || tMessage.Sticker != nil || tMessage.Contact != nil || tMessage.Location != nil || tMessage.Venue != nil || tMessage.Poll != nil || tMessage.Dice != nil || tMessage.Invoice != nil {
 				receiver.deps.Logger.With("update", update).Warn("received unusual content")
@@ -206,7 +207,7 @@ func (receiver *Receiver) downloadFile(ctx context.Context, telegramID string) (
 	}
 	defer resp.Body.Close()
 
-	blobKey = uuid.New().String()
+	blobKey = fmt.Sprintf("%d/%s", receiver.user.ID, uuid.New().String())
 	w, err := receiver.deps.Files.NewWriter(ctx, blobKey, nil)
 	if err != nil {
 		return "", fmt.Errorf("creating new file writer: %w", err)

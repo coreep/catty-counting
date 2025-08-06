@@ -1,24 +1,37 @@
-DONE: # Rework how messenger clients are working. Located at messenger/ folder
+1. Update db/models.go , adding new models. Use https://github.com/shopspring/decimal library to handle all money-related fields. With 2 digits after comma.
+  a. db.File should have many db.Receipts
+  b. db.Receipt should have next fields
+    - totalBeforeTax : decimal
+    - tax : decimal
+    - totalAfterTax : decimal
+    - origin : text
+    - recipient : text
+    - details : text
+    - summary : text
+    - default fields from gorm
+    - fileId : linked to db.File
+  c. db.Receipt should have many db.Product
+  d. db.Product should have next fields
+    - totalBeforeTax : decimal
+    - tax : decimal
+    - totalAfterTax : decimal
+    - title : text
+    - details : text
+    - summary : text
+    - default fields from gorm
+    - receiptID : linked to db.File
+  e. db.Category
+    - title : text
+    - details : text
+    - default fields from gorm
+  f. db.ProductCategory
+    - Make many-to-many relation between db.Product and db.Category
+  g. db.Product has many db.Category and vice versa
 
-DONE: 1. Messenger should have a method `.OnMessage(func(ctx context.Context, msg db.Message, response chan<- string))`.
-DONE: 2. That function should be stored in messenger instance and called once a message is received.
-
-DONE: # Rework messenger/telegram
-
-DONE: 1. Instead of sending MessageRequest through the channel - call the function passed through `OnMessage`
-
-DONE: # Following requirements should be satisfied:
-
-DONE: 1. Responder should wait for a response in a non-blocking mode, showing animation of `Thinking...`
-
-DONE: # Make changes in chatter/
-
-DONE: 1. It should pass a function to `messenger` to process messages. On new message - it should call `llmc.HandleMessage(ctx, message, response)`
-
-DONE: # Make changes to llm/
-
-DONE: 1. Interface should have a method `llmc.HandleMessage(ctx context.Context, message db.Message, response chan<- string)`
-DONE: 2. Rework llm/openai to handle the new flow
-DONE: 3. Each user should have its own chat inside llmc to handle chatting efficiently.
-DONE: 4. Every new message from user to llm or from llm to user should be saved as db.Message.
-DONE: 5. If chat is missing - it should be created, loading up the history of messages for that particular user.
+2. Working with llm/chat.go
+  a. On receiving db.Message from user:
+    - create corresponding db.ExposedFile for each file.
+    - for each file, provide a link to exposed file to openai and ask it to extract necessary data from the file provided
+    - create corresponding models for each file with results of analysis
+    - ask openai to prepare a short response with a short summary of files we received
+    - respond it to the user

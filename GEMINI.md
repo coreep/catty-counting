@@ -1,1 +1,41 @@
-.toai
+# What is this project about
+
+This project is an Accounting Assistance.
+
+# CodeStyle requirements
+
+* Write code in the same style as the code of the project.
+* Use a consistent naming convention for packages and files.
+* Use prepared statements to prevent SQL injection.
+
+## We are following pattern "Command"
+
+Main points:
+
+* A lot of logic paths can be described as chain of Commands.
+* Command is represented as an instance, that is capable of storing state and dependencies for execution of a Command.
+* Command can use a Client to perform actions with external entities, like DataBases, APIs, File Management Systems, etc.
+* Client has an instance too, but its state is considered to be immutable during execution.
+* Commands receive parameters as a list of arguments during initialization.
+* Commands receive and store necessary clients as `deps` field on the instance.
+* Commands and clients should be initialized through initialization function. Such function:
+  * receives necessary arguments and dependencies
+  * updates `deps.Logger = deps.Logger.With(logger.CALLER, "package.subpackage.client_name")`
+  * assigns those to a new instance of command
+  * returns pointer to an instance of a command
+
+## Logging
+
+* Use structured logging with `slog.Logger`.
+* Add contextual information to logs.
+* Use field name constants taken from `logger/logger.go`, add new if necessary.
+* Avoid logging sensitive information.
+* Pass logger as a dependency to commands/clients.
+* To add a field to log's context - use `With("key", value)` method. Chain multiple `With` to provide more context.
+* Write debug logs for noticeable events in code. Write info logs for noticeable events in domain logic. Write error logs for errors that break domain logic flow.
+
+## How to handle errors
+
+* Use `fmt.Errorf` when propagating the error.
+* Write an error message in a story-telling fashion, like `fmt.Errorf("downloading file: %w", err)`.
+* When create an error or wrap error coming from an external source, add stacktrace with `errors.WithStack`.

@@ -9,11 +9,12 @@ import (
 )
 
 var (
-	logLevel   string
+	host    string
+	apiPort string
+
+	logLevel string
 
 	fileBucket string
-
-	apiPort string
 
 	geminiApiKey  string
 	openAiApiKey  string
@@ -36,6 +37,7 @@ func Init() error {
 	}
 
 	checkAndSet := map[string]*string{
+		"HOST":        &host,
 		"FILE_BUCKET": &fileBucket,
 		// "GEMINI_API_KEY": &geminiApiKey,
 		"OPENAI_API_KEY": &openAiApiKey,
