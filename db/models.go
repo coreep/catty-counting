@@ -1,6 +1,7 @@
 package db
 
 import (
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -53,6 +54,7 @@ type File struct {
 	TelegramID   string
 	Message      Message
 	ExposedFile  *ExposedFile
+	Receipts     []Receipt
 }
 
 type ExposedFile struct {
@@ -60,4 +62,48 @@ type ExposedFile struct {
 	FileID uint   `gorm:"index"`
 	Key    string `gorm:"type:varchar(256);uniqueIndex"`
 	File   File
+}
+
+// Receipt represents a parsed receipt/document extracted from a File
+type Receipt struct {
+	gorm.Model
+	FileID         uint            `gorm:"index"`
+	TotalBeforeTax decimal.Decimal `gorm:"type:decimal(20,2)"`
+	Tax            decimal.Decimal `gorm:"type:decimal(20,2)"`
+	TotalAfterTax  decimal.Decimal `gorm:"type:decimal(20,2)"`
+	Origin         string          `gorm:"type:text"`
+	Recipient      string          `gorm:"type:text"`
+	Details        string          `gorm:"type:text"`
+	Summary        string          `gorm:"type:text"`
+	File           File
+	Products       []Product
+}
+
+// Product represents an item parsed from a Receipt
+type Product struct {
+	gorm.Model
+	ReceiptID      uint            `gorm:"index"`
+	Title          string          `gorm:"type:text"`
+	Details        string          `gorm:"type:text"`
+	Summary        string          `gorm:"type:text"`
+	TotalBeforeTax decimal.Decimal `gorm:"type:decimal(20,2)"`
+	Tax            decimal.Decimal `gorm:"type:decimal(20,2)"`
+	TotalAfterTax  decimal.Decimal `gorm:"type:decimal(20,2)"`
+	Receipt        Receipt
+	Categories     []Category `gorm:"many2many:product_categories;"`
+}
+
+// Category groups products
+type Category struct {
+	gorm.Model
+	Title    string    `gorm:"type:text"`
+	Details  string    `gorm:"type:text"`
+	Products []Product `gorm:"many2many:product_categories;"`
+}
+
+// ProductCategory is the join table for many-to-many Product<->Category
+type ProductCategory struct {
+	gorm.Model
+	ProductID  uint `gorm:"index"`
+	CategoryID uint `gorm:"index"`
 }
