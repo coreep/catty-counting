@@ -28,7 +28,7 @@
     - Make many-to-many relation between db.Product and db.Category
   g. db.Product has many db.Category and vice versa
 
-2. Working with llm/chat.go
+2. Working with llm/openai/chat.go
   a. On receiving db.Message from user:
     - create corresponding db.ExposedFile for each file.
     - for each file, provide a link to exposed file to openai and ask it to extract necessary data from the file provided
