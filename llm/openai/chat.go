@@ -9,7 +9,7 @@ import (
 	"github.com/EPecherkin/catty-counting/db"
 	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/logger"
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v2"
 	"github.com/pkg/errors"
 )
 
@@ -47,7 +47,7 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 	chat.history = append(chat.history, userMessage)
 
 	params := openai.ChatCompletionNewParams{
-		Model:    openai.ChatModelGPT4o,
+		Model:    openai.ChatModelGPT5,
 		Messages: chat.history,
 	}
 
