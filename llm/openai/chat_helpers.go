@@ -41,7 +41,7 @@ type extractionResult struct {
 }
 
 // processFiles handles all files in the message: ensure exposed, extract and persist
-func (chat *Chat) processFiles(ctx context.Context, fullMsg db.Message) (int, error) {
+func (chat *Chat) processFiles(ctx context.Context, fullMsg db.Message) ([]db.Receipt, error) {
     totalReceiptsCreated := 0
     for _, file := range fullMsg.Files {
         chat.deps.Logger = chat.deps.Logger.With("file_id", file.ID, "file_blob", file.BlobKey)

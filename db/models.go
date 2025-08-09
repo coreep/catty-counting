@@ -11,7 +11,7 @@ const (
 	MessageDirectionFromUser    MessageDirection = "from-user"
 	MessageDirectionToUser      MessageDirection = "to-user"
 	MessageDirectionSystemToLlm MessageDirection = "system-to-llm"
-	MessageDirectionLlmToUser   MessageDirection = "llm-to-system"
+	MessageDirectionLlmToSystem MessageDirection = "llm-to-system"
 )
 
 type User struct {
@@ -43,6 +43,7 @@ type Message struct {
 	Files       []File
 }
 
+// A file provided by the User
 type File struct {
 	gorm.Model
 	MessageID    uint   `gorm:"index"`
@@ -57,6 +58,7 @@ type File struct {
 	Receipts     []Receipt
 }
 
+// Reperesents an access link for LLM to download the file
 type ExposedFile struct {
 	gorm.Model
 	FileID uint   `gorm:"index"`
@@ -64,7 +66,7 @@ type ExposedFile struct {
 	File   File
 }
 
-// Receipt represents a parsed receipt/document extracted from a File
+// Represents a parsed receipt/document extracted from a File
 type Receipt struct {
 	gorm.Model
 	FileID         uint            `gorm:"index"`

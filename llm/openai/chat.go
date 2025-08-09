@@ -16,6 +16,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const systemPrompt = `You are an accounting helping assistant, which is capable of processing docs, receipts, building statistics and giving advices.`
+
 type Chat struct {
 	oClient *openai.Client
 	deps    deps.Deps
@@ -28,8 +30,6 @@ func newChat(oClient *openai.Client, deps deps.Deps) *Chat {
 	return &Chat{oClient: oClient, deps: deps}
 }
 
-const systemPrompt = `You are an accounting helping assistant, which is capable of processing docs, receipts, building statistics and giving advices.`
-
 func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan chan<- string) {
 	chat.deps.Logger = chat.deps.Logger.With(logger.USER_ID, message.UserID, logger.MESSAGE_ID, message.ID)
 	chat.deps.Logger.Debug("starting talking")
@@ -41,16 +41,16 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 		}
 	}()
 
-	// preload files and exposed files
-	var fullMsg db.Message
-	if err := chat.deps.DBC.Preload("Files.ExposedFile").Preload("Files").First(&fullMsg, message.ID).Error; err != nil {
-		chat.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Debug("failed to preload message files, falling back to provided message")
-		fullMsg = message
+	if err := chat.deps.DBC.Preload("Files.ExposedFile").Preload("Files").First(&message, message.ID).Error; err != nil {
+		chat.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Error("failed to preload message files, falling back to provided message")
 	}
 
-	// Process files using extracted helper methods and return a short summary
-	totalReceiptsCreated, _ := chat.processFiles(ctx, fullMsg)
-	summaryText := fmt.Sprintf("Processed %d files, created %d receipts.", len(fullMsg.Files), totalReceiptsCreated)
+	receipts, err := chat.processFiles(ctx, message)
+	if err != nil {
+		chat.deps.Logger.With(logger.ERROR, err).Error("failed to process provided files")
+	}
+	chat.deps.Logger.With("count", len(receipts)).Debug("Files processed, receipts created")
+	summaryText := fmt.Sprintf("Processed %d files, created %d receipts.", len(message.Files), len(receipts))
 
 	responseMessage := db.Message{
 		UserID:    message.UserID,
@@ -68,7 +68,7 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 
 	// For every file create ExposedFile if missing and ask OpenAI to extract structured data
 	totalReceiptsCreated := 0
-	for _, file := range fullMsg.Files {
+	for _, file := range message.Files {
 		chat.deps.Logger = chat.deps.Logger.With("file_id", file.ID, "file_blob", file.BlobKey)
 		if file.ExposedFile == nil || file.ExposedFile.Key == "" {
 			ek := uuid.New().String()
@@ -199,7 +199,7 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 	}
 
 	// After processing files, ask the model to prepare a short human-readable summary
-	summaryText := fmt.Sprintf("Processed %d files, created %d receipts.", len(fullMsg.Files), totalReceiptsCreated)
+	summaryText := fmt.Sprintf("Processed %d files, created %d receipts.", len(message.Files), totalReceiptsCreated)
 
 	// Create response message and save
 	responseMessage := db.Message{
