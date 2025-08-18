@@ -65,6 +65,10 @@ func LogDebug() bool {
 	return logLevel == "debug"
 }
 
+func Host() string {
+	return host
+}
+
 func FileBucket() string {
 	return fileBucket
 }
