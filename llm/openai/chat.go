@@ -41,13 +41,18 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 		chat.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Error("failed to preload message files, falling back to provided message")
 	}
 
-	receipts, err := chat.processFiles(ctx, message)
-	if err != nil {
+	if err := chat.processFiles(ctx, &message); err != nil {
 		chat.deps.Logger.With(logger.ERROR, err).Error("failed to process provided files")
 	}
-	chat.deps.Logger.With("count", len(receipts)).Debug("Files processed, receipts created")
+
+	fileCount := len(message.Files)
+	receiptCount := 0
+	for _, f := range message.Files {
+		receipts += len(f.Receipts)
+	}
+	chat.deps.Logger.With("files", len(message.Files)).With("receipts", receipts).Debug("Files processed")
 	// TODO:send analysis result to LLM and answer user's request
-	summaryText := fmt.Sprintf("Processed %d files, created %d receipts.", len(message.Files), len(receipts))
+	summaryText := fmt.Sprintf("Processed %d files, created %d receipts.", len(message.Files), receipts)
 
 	responseMessage := db.Message{
 		UserID:    message.UserID,

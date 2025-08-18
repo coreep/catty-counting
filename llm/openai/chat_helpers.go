@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type extractedProduct struct {
+type parsedProduct struct {
 	Title          string   `json:"title"`
 	Details        string   `json:"details"`
 	Summary        string   `json:"summary"`
@@ -25,65 +25,19 @@ type extractedProduct struct {
 	Categories     []string `json:"categories"`
 }
 
-type extractedReceipt struct {
-	TotalBeforeTax string             `json:"totalBeforeTax"`
-	Tax            string             `json:"tax"`
-	TotalAfterTax  string             `json:"totalAfterTax"`
-	Origin         string             `json:"origin"`
-	Recipient      string             `json:"recipient"`
-	Details        string             `json:"details"`
-	Summary        string             `json:"summary"`
-	Products       []extractedProduct `json:"products"`
+type parsedReceipt struct {
+	TotalBeforeTax string          `json:"totalBeforeTax"`
+	Tax            string          `json:"tax"`
+	TotalAfterTax  string          `json:"totalAfterTax"`
+	Origin         string          `json:"origin"`
+	Recipient      string          `json:"recipient"`
+	Details        string          `json:"details"`
+	Summary        string          `json:"summary"`
+	Products       []parsedProduct `json:"products"`
 }
 
-type extractionResult struct {
-	Receipts []extractedReceipt `json:"receipts"`
-}
-
-// processFiles handles all files in the message: ensure exposed, extract and persist
-func (chat *Chat) processFiles(ctx context.Context, fullMsg db.Message) ([]db.Receipt, error) {
-	totalReceiptsCreated := 0
-	for _, file := range fullMsg.Files {
-		chat.deps.Logger = chat.deps.Logger.With("file_id", file.ID, "file_blob", file.BlobKey)
-
-		fileURL, err := chat.ensureExposedFile(&file)
-		if err != nil {
-			// TODO:  return as error
-			chat.deps.Logger.With(logger.ERROR, err).Error("problems exposing the file")
-			continue
-		}
-		chat.deps.Logger.Debug("file exposed. parsing...", "url", fileURL)
-
-		parsed, err := chat.parseFile(ctx, fileURL)
-		if err != nil {
-			chat.deps.Logger.With(logger.ERROR, err).Error("parsing failed")
-			continue
-		}
-
-		created, err := chat.persistParsed(file, parsed)
-		if err != nil {
-			chat.deps.Logger.With(logger.ERROR, err).Error("failed to persist parsing results")
-			continue
-		}
-		totalReceiptsCreated += created
-	}
-	return totalReceiptsCreated, nil
-}
-
-// ensureExposedFile creates ExposedFile record when missing and returns the key
-func (chat *Chat) ensureExposedFile(file *db.File) (string, error) {
-	var key string
-	if file.ExposedFile != nil && file.ExposedFile.Key != "" {
-		key = file.ExposedFile.Key
-	} else {
-		key = uuid.New().String()
-		ef := db.ExposedFile{FileID: file.ID, Key: key}
-		if err := chat.deps.DBC.Create(&ef).Error; err != nil {
-			return "", fmt.Errorf("creating exposed file: %w", errors.WithStack(err))
-		}
-		file.ExposedFile = &ef
-	}
-	return fmt.Sprintf("%s/%s", config.Host(), key), nil
+type parsedFile struct {
+	Receipts []parsedReceipt `json:"receipts"`
 }
 
 const PRMOPT_PARSE_FILE = `Parse receipts and products from the provided file to the exact JSON structure:
@@ -114,15 +68,57 @@ const PRMOPT_PARSE_FILE = `Parse receipts and products from the provided file to
   ]
 }`
 
-// parseFile asks OpenAI to extract structured JSON from the file URL
-func (chat *Chat) parseFile(ctx context.Context, fileURL string) (extractionResult, error) {
-	var res extractionResult
+// Handles all files in the message: expose, extract and persist
+func (chat *Chat) processFiles(ctx context.Context, message *db.Message) error {
+	// TODO: we intend to mutate db.Message all the way down to the categories
+	// any mutaton to the structure should affect message. Message -> Files -> Receipts -> Products -> Categories
+	for _, file := range message.Files {
+		chat.deps.Logger = chat.deps.Logger.With("file_id", file.ID, "file_blob", file.BlobKey)
+
+		fileURL, err := chat.exposeFile(&file)
+		if err != nil {
+			return fmt.Errorf("exposing file: %w", err)
+		}
+		chat.deps.Logger.Debug("file exposed. parsing...", "url", fileURL)
+
+		// TODO: retry
+		parsedData, err := chat.parseFile(ctx, fileURL)
+		if err != nil {
+			return fmt.Errorf("parsing file: %w", err)
+		}
+
+		if err := chat.attachParsedOnFile(file, parsedData); err != nil {
+			return fmt.Errorf("saving parsed data on file: %w", err)
+		}
+	}
+	return nil
+}
+
+// Make file available for API retrieval. Returns API URL for downloading the file
+func (chat *Chat) exposeFile(file *db.File) (string, error) {
+	var key string
+	if file.ExposedFile != nil && file.ExposedFile.Key != "" {
+		key = file.ExposedFile.Key
+	} else {
+		key = uuid.New().String()
+		ef := db.ExposedFile{FileID: file.ID, Key: key}
+		if err := chat.deps.DBC.Create(&ef).Error; err != nil {
+			return "", fmt.Errorf("creating exposed file: %w", errors.WithStack(err))
+		}
+		file.ExposedFile = &ef
+	}
+	return fmt.Sprintf("%s/%s", config.Host(), key), nil
+}
+
+// Use OpenAI to extract structured JSON from the file URL
+func (chat *Chat) parseFile(ctx context.Context, fileURL string) (parsedFile, error) {
+	var res parsedFile
 
 	params := openai.ChatCompletionNewParams{
 		Model: openai.ChatModelGPT5,
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.SystemMessage(PROMPT_SYSTEM),
-			openai.SystemMessage(
+			openai.UserMessage(
 				[]openai.ChatCompletionContentPartUnionParam{
 					openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{URL: fileURL, Detail: "auto"}),
 					openai.TextContentPart(PRMOPT_PARSE_FILE),
@@ -131,14 +127,14 @@ func (chat *Chat) parseFile(ctx context.Context, fileURL string) (extractionResu
 		},
 	}
 
-	resp, err := chat.oClient.Chat.Completions.Create(ctx, params)
+	resp, err := chat.oClient.Chat.Completions.New(ctx, params)
 	if err != nil {
 		return res, fmt.Errorf("extraction call failed: %w", errors.WithStack(err))
 	}
 
 	assistantText := ""
-	if len(resp.Choices) > 0 && resp.Choices[0].Message.Content != nil {
-		assistantText = resp.Choices[0].Message.Content.GetText()
+	if len(resp.Choices) > 0 && resp.Choices[0].Message.Content != "" {
+		assistantText = resp.Choices[0].Message.Content
 	}
 	if assistantText == "" {
 		return res, fmt.Errorf("empty extraction response")
@@ -151,8 +147,8 @@ func (chat *Chat) parseFile(ctx context.Context, fileURL string) (extractionResu
 	return res, nil
 }
 
-// persistExtraction writes receipts/products/categories to DB and returns created receipts count
-func (chat *Chat) persistParsed(file db.File, res extractionResult) (int, error) {
+// Writes receipts/products/categories to DB and returns created receipts count
+func (chat *Chat) attachParsedOnFile(file db.File, res parsedFile) error {
 	created := 0
 	for _, r := range res.Receipts {
 		totalBefore, _ := decimal.NewFromString(r.TotalBeforeTax)
@@ -170,7 +166,7 @@ func (chat *Chat) persistParsed(file db.File, res extractionResult) (int, error)
 			Summary:        r.Summary,
 		}
 		if err := chat.deps.DBC.Create(&receipt).Error; err != nil {
-			return created, fmt.Errorf("create receipt: %w", errors.WithStack(err))
+			return fmt.Errorf("create receipt: %w", errors.WithStack(err))
 		}
 		created++
 
@@ -214,5 +210,5 @@ func (chat *Chat) persistParsed(file db.File, res extractionResult) (int, error)
 			}
 		}
 	}
-	return created, nil
+	return nil
 }
