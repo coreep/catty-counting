@@ -13,7 +13,7 @@ import (
 	"github.com/EPecherkin/catty-counting/db"
 	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/llm"
-	"github.com/EPecherkin/catty-counting/logger"
+	"github.com/EPecherkin/catty-counting/log"
 	"github.com/EPecherkin/catty-counting/messenger"
 	"github.com/pkg/errors"
 	"gocloud.dev/blob"
@@ -29,14 +29,14 @@ func main() {
 	}()
 
 	ctx := context.Background()
-	lgr, dbc, files, llmc, msgc, err := initialize(ctx)
+	logger, dbc, files, llmc, msgc, err := initialize(ctx)
 	if err != nil {
-		lgr.With(logger.ERROR, err).Error("Initialization failed")
+		logger.With(log.ERROR, err).Error("Initialization failed")
 		os.Exit(1)
 	}
 
 	var wg sync.WaitGroup
-	d := deps.Deps{Logger: lgr, DBC: dbc, Files: files}
+	d := deps.Deps{Logger: logger, DBC: dbc, Files: files}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -51,31 +51,31 @@ func main() {
 	wg.Wait()
 }
 
-func initialize(ctx context.Context) (lgr *slog.Logger, databaseConnection *gorm.DB, filesBucket *blob.Bucket, _ llm.Client, _ messenger.Client, _ error) {
-	if err := config.Init(); err != nil {
-		return logger.NewLogger(), nil, nil, nil, nil, fmt.Errorf("initializing config: %w", err)
-	}
+func initialize(ctx context.Context) (logger *slog.Logger, databaseConnection *gorm.DB, filesBucket *blob.Bucket, _ llm.Client, _ messenger.Client, _ error) {
+	logger = log.NewLogger()
 
-	lgr = logger.NewLogger()
+	if err := config.Init(); err != nil {
+		return logger, nil, nil, nil, nil, fmt.Errorf("initializing config: %w", err)
+	}
 
 	dbc, err := db.NewConnection()
 	if err != nil {
-		return lgr, nil, nil, nil, nil, fmt.Errorf("initializing database connection: %w", err)
+		return logger, nil, nil, nil, nil, fmt.Errorf("initializing database connection: %w", err)
 	}
 
 	files, err := blob.OpenBucket(ctx, config.FileBucket())
 	if err != nil {
-		return lgr, nil, nil, nil, nil, fmt.Errorf("initializing file blob: %w", errors.WithStack(err))
+		return logger, nil, nil, nil, nil, fmt.Errorf("initializing file blob: %w", errors.WithStack(err))
 	}
 
-	llmc, err := llm.CreateOpenaiClient(deps.Deps{Logger: lgr, DBC: dbc, Files: files})
+	llmc, err := llm.CreateOpenaiClient(deps.Deps{Logger: logger, DBC: dbc, Files: files})
 	if err != nil {
-		return lgr, nil, nil, nil, nil, fmt.Errorf("initializing llm client: %w", err)
+		return logger, nil, nil, nil, nil, fmt.Errorf("initializing llm client: %w", err)
 	}
 
-	msgc, err := messenger.CreateTelegramClient(deps.Deps{Logger: lgr, DBC: dbc, Files: files})
+	msgc, err := messenger.CreateTelegramClient(deps.Deps{Logger: logger, DBC: dbc, Files: files})
 	if err != nil {
-		return lgr, nil, nil, nil, nil, fmt.Errorf("initializing messenger client: %w", err)
+		return logger, nil, nil, nil, nil, fmt.Errorf("initializing messenger client: %w", err)
 	}
-	return lgr, dbc, files, llmc, msgc, nil
+	return logger, dbc, files, llmc, msgc, nil
 }

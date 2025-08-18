@@ -6,7 +6,7 @@ import (
 	"github.com/EPecherkin/catty-counting/db"
 	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/llm"
-	"github.com/EPecherkin/catty-counting/logger"
+	"github.com/EPecherkin/catty-counting/log"
 	"github.com/EPecherkin/catty-counting/messenger"
 )
 
@@ -18,7 +18,7 @@ type Chatter struct {
 }
 
 func NewChatter(msgc messenger.Client, llmc llm.Client, deps deps.Deps) *Chatter {
-	deps.Logger = deps.Logger.With(logger.CALLER, "Chatter")
+	deps.Logger = deps.Logger.With(log.CALLER, "Chatter")
 	deps.Logger.Debug("Creating chatter")
 	return &Chatter{messengerc: msgc, llmc: llmc, deps: deps}
 }
@@ -31,7 +31,7 @@ func (chatter *Chatter) Run(ctx context.Context) {
 }
 
 func (chatter *Chatter) handleMessage(ctx context.Context, message db.Message, response chan<- string) {
-	lgr := chatter.deps.Logger.With(logger.USER_ID, message.UserID, logger.MESSAGE_ID, message.ID)
-	lgr.Debug("llc handling message")
+	logger := chatter.deps.Logger.With(log.USER_ID, message.UserID, log.MESSAGE_ID, message.ID)
+	logger.Debug("llc handling message")
 	chatter.llmc.HandleMessage(ctx, message, response)
 }

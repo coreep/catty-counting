@@ -8,7 +8,7 @@ import (
 	"github.com/EPecherkin/catty-counting/db"
 	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/llm/base"
-	"github.com/EPecherkin/catty-counting/logger"
+	"github.com/EPecherkin/catty-counting/log"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
 )
@@ -22,7 +22,7 @@ type Client struct {
 }
 
 func CreateClient(deps deps.Deps) (base.Client, error) {
-	deps.Logger = deps.Logger.With(logger.CALLER, "openai client")
+	deps.Logger = deps.Logger.With(log.CALLER, "openai client")
 	deps.Logger.Debug("Creating openai client")
 	apiKey := config.OpenAiApiKey()
 	oClient := openai.NewClient(option.WithAPIKey(apiKey))

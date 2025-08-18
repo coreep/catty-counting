@@ -7,7 +7,7 @@ import (
 	"github.com/EPecherkin/catty-counting/config"
 	"github.com/EPecherkin/catty-counting/db"
 	"github.com/EPecherkin/catty-counting/deps"
-	"github.com/EPecherkin/catty-counting/logger"
+	"github.com/EPecherkin/catty-counting/log"
 	"github.com/openai/openai-go/v2"
 	"github.com/pkg/errors"
 )
@@ -21,38 +21,41 @@ type Chat struct {
 }
 
 func newChat(oClient *openai.Client, deps deps.Deps) *Chat {
-	deps.Logger = deps.Logger.With(logger.CALLER, "openai.Chat")
+	deps.Logger = deps.Logger.With(log.CALLER, "openai.Chat")
 	deps.Logger.Debug("Creating openai chat")
 	return &Chat{oClient: oClient, deps: deps}
 }
 
 func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan chan<- string) {
-	chat.deps.Logger = chat.deps.Logger.With(logger.USER_ID, message.UserID, logger.MESSAGE_ID, message.ID)
+	chat.deps.Logger = chat.deps.Logger.With(log.USER_ID, message.UserID, log.MESSAGE_ID, message.ID)
 	chat.deps.Logger.Debug("starting talking")
 	defer func() {
 		if err := recover(); err != nil {
-			chat.deps.Logger.With(logger.ERROR, err).Error("failed talking")
+			chat.deps.Logger.With(log.ERROR, err).Error("failed talking")
 		} else {
 			chat.deps.Logger.Debug("finished talking")
 		}
 	}()
 
 	if err := chat.deps.DBC.Preload("Files.ExposedFile").Preload("Files").First(&message, message.ID).Error; err != nil {
-		chat.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Error("failed to preload message files, falling back to provided message")
-	}
-
-	if err := chat.processFiles(ctx, &message); err != nil {
-		chat.deps.Logger.With(logger.ERROR, err).Error("failed to process provided files")
+		chat.deps.Logger.With(log.ERROR, errors.WithStack(err)).Error("failed to preload message files, falling back to provided message")
 	}
 
 	fileCount := len(message.Files)
-	receiptCount := 0
-	for _, f := range message.Files {
-		receipts += len(f.Receipts)
+	
+	if fileCount > 0 {
+		if err := chat.processFiles(ctx, &message); err != nil {
+			chat.deps.Logger.With(log.ERROR, err).Error("failed to process provided files")
+		}
+
+		receiptCount := 0
+		for _, f := range message.Files {
+			receiptCount += len(f.Receipts)
+		}
+		chat.deps.Logger.With("files", fileCount).With("receipts", receiptCount).Debug("Files processed")
+		// TODO:send analysis result to LLM and answer user's request
+		summaryText := fmt.Sprintf("Processed %d files, created %d receipts.", fileCount, receiptCount)
 	}
-	chat.deps.Logger.With("files", len(message.Files)).With("receipts", receipts).Debug("Files processed")
-	// TODO:send analysis result to LLM and answer user's request
-	summaryText := fmt.Sprintf("Processed %d files, created %d receipts.", len(message.Files), receipts)
 
 	responseMessage := db.Message{
 		UserID:    message.UserID,
@@ -60,7 +63,7 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 		Direction: db.MessageDirectionToUser,
 	}
 	if err := chat.deps.DBC.Create(&responseMessage).Error; err != nil {
-		chat.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Error("failed to save summary message")
+		chat.deps.Logger.With(log.ERROR, errors.WithStack(err)).Error("failed to save summary message")
 	}
 
 	responseChan <- summaryText
@@ -98,7 +101,7 @@ func (chat *Chat) loadHistory(userID uint) error {
 }
 
 func (chat *Chat) handleError(err error, details string) string {
-	chat.deps.Logger.With(logger.ERROR, err).Error(details)
+	chat.deps.Logger.With(log.ERROR, err).Error(details)
 	if config.LogDebug() {
 		return fmt.Sprintf(details+": %+v", err)
 	} else {

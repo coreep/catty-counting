@@ -11,7 +11,7 @@ import (
 	"github.com/EPecherkin/catty-counting/config"
 	"github.com/EPecherkin/catty-counting/db"
 	"github.com/EPecherkin/catty-counting/deps"
-	"github.com/EPecherkin/catty-counting/logger"
+	"github.com/EPecherkin/catty-counting/log"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 )
@@ -21,7 +21,7 @@ type Api struct {
 }
 
 func NewApi(deps deps.Deps) *Api {
-	deps.Logger = deps.Logger.With(logger.CALLER, "api.api")
+	deps.Logger = deps.Logger.With(log.CALLER, "api.api")
 	return &Api{deps: deps}
 }
 
@@ -34,7 +34,7 @@ func (a *Api) Run(ctx context.Context) {
 	a.deps.Logger.Info("Starting API server on port " + config.ApiPort())
 	// TODO: handle graceful shutdown; context
 	if err := router.Run(":" + config.ApiPort()); err != nil {
-		a.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Error("Api failed")
+		a.deps.Logger.With(log.ERROR, errors.WithStack(err)).Error("Api failed")
 	}
 	a.deps.Logger.Debug("api done")
 }
@@ -45,7 +45,7 @@ func (a *Api) provideFile(c *gin.Context) {
 
 	var exposedFile db.ExposedFile
 	if err := a.deps.DBC.WithContext(c.Request.Context()).Joins("File").First(&exposedFile, "key = ?", key).Error; err != nil {
-		lgr.With(logger.ERROR, err).Error("failed to find exposed file")
+		lgr.With(log.ERROR, err).Error("failed to find exposed file")
 		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
 		return
 	}
@@ -53,13 +53,13 @@ func (a *Api) provideFile(c *gin.Context) {
 
 	reader, err := a.deps.Files.NewReader(c.Request.Context(), exposedFile.File.BlobKey, nil)
 	if err != nil {
-		lgr.With(logger.ERROR, err).Error("failed to read from blob")
+		lgr.With(log.ERROR, err).Error("failed to read from blob")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read file"})
 		return
 	}
 	defer func() {
 		if err := reader.Close(); err != nil {
-			a.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Info("closing blob reader")
+			a.deps.Logger.With(log.ERROR, errors.WithStack(err)).Info("closing blob reader")
 		}
 	}()
 
@@ -68,7 +68,7 @@ func (a *Api) provideFile(c *gin.Context) {
 	c.Header("Content-Length", fmt.Sprintf("%d", exposedFile.File.Size))
 
 	if _, err := io.Copy(c.Writer, reader); err != nil {
-		lgr.With(logger.ERROR, err).Error("failed to copy file to response")
+		lgr.With(log.ERROR, err).Error("failed to copy file to response")
 		return
 	}
 }

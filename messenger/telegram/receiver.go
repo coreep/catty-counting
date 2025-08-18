@@ -9,7 +9,7 @@ import (
 
 	"github.com/EPecherkin/catty-counting/db"
 	"github.com/EPecherkin/catty-counting/deps"
-	"github.com/EPecherkin/catty-counting/logger"
+	"github.com/EPecherkin/catty-counting/log"
 	"github.com/EPecherkin/catty-counting/messenger/base"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/google/uuid"
@@ -36,7 +36,7 @@ type Receiver struct {
 }
 
 func NewReceiver(tUserID int64, closeF func(), client *Client, onMessage base.OnMessageCallback, deps deps.Deps) *Receiver {
-	deps.Logger = deps.Logger.With(logger.CALLER, "messenger.telegram.Receiver").With(logger.TELEGRAM_USER_ID, tUserID)
+	deps.Logger = deps.Logger.With(log.CALLER, "messenger.telegram.Receiver").With(log.TELEGRAM_USER_ID, tUserID)
 	return &Receiver{telegramUserID: tUserID, close: closeF, client: client, onMessage: onMessage, updates: make(chan tgbotapi.Update), deps: deps}
 }
 
@@ -45,7 +45,7 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 	defer func() {
 		receiver.deps.Logger.Debug("stopping receiving updates")
 		if err := recover(); err != nil {
-			receiver.deps.Logger.With(logger.ERROR, err).Error("panic in GoReceiveMessages")
+			receiver.deps.Logger.With(log.ERROR, err).Error("panic in GoReceiveMessages")
 		}
 		receiver.close()
 		close(receiver.updates)
@@ -54,19 +54,19 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 	var user db.User
 	if err := receiver.deps.DBC.First(&user, db.User{TelegramID: receiver.telegramUserID}).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			receiver.deps.Logger.With(logger.ERROR, err).Error("Failed to query user")
+			receiver.deps.Logger.With(log.ERROR, err).Error("Failed to query user")
 			return
 		} else {
 			receiver.deps.Logger.Debug("Creating new user from telegram")
 			user = db.User{TelegramID: receiver.telegramUserID}
 			if err := receiver.deps.DBC.Create(&user).Error; err != nil {
-				receiver.deps.Logger.With(logger.ERROR, err).Error("Failed to create user")
+				receiver.deps.Logger.With(log.ERROR, err).Error("Failed to create user")
 				return
 			}
 		}
 	}
 	receiver.user = user
-	receiver.deps.Logger = receiver.deps.Logger.With(logger.USER_ID, user.ID)
+	receiver.deps.Logger = receiver.deps.Logger.With(log.USER_ID, user.ID)
 
 	var timeouter *time.Ticker
 	refreshTimeouter := func() {
@@ -85,16 +85,16 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 		select {
 		case update := <-receiver.updates:
 			tMessage := update.Message
-			lgr := receiver.deps.Logger.
-				With(logger.TELEGRAM_UPDATE_ID, update.UpdateID).
-				With(logger.TELEGRAM_CHAT_ID, tMessage.Chat.ID).
-				With(logger.TELEGRAM_MESSAGE_ID, tMessage.MessageID)
+			logger := receiver.deps.Logger.
+				With(log.TELEGRAM_UPDATE_ID, update.UpdateID).
+				With(log.TELEGRAM_CHAT_ID, tMessage.Chat.ID).
+				With(log.TELEGRAM_MESSAGE_ID, tMessage.MessageID)
 
 			if receiver.responder != nil {
-				lgr.Info("receiver received update during another exchange. Interrupting...")
+				logger.Info("receiver received update during another exchange. Interrupting...")
 				receiver.responder.close()
 			}
-			receiver.deps.Logger = lgr
+			receiver.deps.Logger = logger
 
 			if tMessage.Audio != nil || len(tMessage.Entities) > 0 || tMessage.Voice != nil || tMessage.Video != nil || tMessage.VideoNote != nil || tMessage.Sticker != nil || tMessage.Contact != nil || tMessage.Location != nil || tMessage.Venue != nil || tMessage.Poll != nil || tMessage.Dice != nil || tMessage.Invoice != nil {
 				receiver.deps.Logger.With("update", update).Warn("received unusual content")
@@ -105,10 +105,10 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 				receiver.deps.Logger.Debug("building new message")
 				message = &db.Message{UserID: receiver.user.ID, TelegramIDs: []int{tMessage.MessageID}, Direction: db.MessageDirectionFromUser}
 				if err := receiver.deps.DBC.Create(message).Error; err != nil {
-					receiver.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Error("Failed to create message")
+					receiver.deps.Logger.With(log.ERROR, errors.WithStack(err)).Error("Failed to create message")
 					// NOTE: important failure
 				}
-				receiver.deps.Logger = receiver.deps.Logger.With(logger.MESSAGE_ID, message.ID)
+				receiver.deps.Logger = receiver.deps.Logger.With(log.MESSAGE_ID, message.ID)
 			} else {
 				receiver.deps.Logger.Debug("appending to message")
 				message.TelegramIDs = append(message.TelegramIDs, tMessage.MessageID)
@@ -116,16 +116,16 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 
 			message.Text += tMessage.Text
 			if err := receiver.deps.DBC.Save(message).Error; err != nil {
-				receiver.deps.Logger.With(logger.ERROR, errors.WithStack(err)).Error("Failed to save message")
+				receiver.deps.Logger.With(log.ERROR, errors.WithStack(err)).Error("Failed to save message")
 				// NOTE: important failure
 			}
 
 			if tMessage.Document != nil {
-				lgr := receiver.deps.Logger.With(logger.TELEGRAM_DOCUMENT_ID, tMessage.Document.FileID)
-				lgr.Debug("Received document")
+				logger := receiver.deps.Logger.With(log.TELEGRAM_DOCUMENT_ID, tMessage.Document.FileID)
+				logger.Debug("Received document")
 				blobKey, err := receiver.downloadFile(ctx, tMessage.Document.FileID)
 				if err != nil {
-					lgr.With(logger.ERROR, errors.WithStack(err)).Error("Filed to download document")
+					logger.With(log.ERROR, errors.WithStack(err)).Error("Filed to download document")
 				}
 				file := db.File{
 					MessageID:    message.ID,
@@ -137,18 +137,18 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 				}
 				message.Files = append(message.Files, file)
 				if err := receiver.deps.DBC.Save(&file).Error; err != nil {
-					lgr.With(logger.ERROR, errors.WithStack(err)).Error("Filed to save file with document")
+					logger.With(log.ERROR, errors.WithStack(err)).Error("Filed to save file with document")
 					// NOTE: important failure
 				}
 			}
 
 			if tMessage.Photo != nil {
 				for _, photo := range tMessage.Photo {
-					lgr := receiver.deps.Logger.With(logger.TELEGRAM_PHOTO_ID, photo.FileID)
-					lgr.Debug("Received photo")
+					logger := receiver.deps.Logger.With(log.TELEGRAM_PHOTO_ID, photo.FileID)
+					logger.Debug("Received photo")
 					blobKey, err := receiver.downloadFile(ctx, photo.FileID)
 					if err != nil {
-						lgr.With(logger.ERROR, errors.WithStack(err)).Error("Filed to download photo")
+						logger.With(log.ERROR, errors.WithStack(err)).Error("Filed to download photo")
 					}
 					file := db.File{
 						MessageID:  message.ID,
@@ -158,7 +158,7 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 					}
 					message.Files = append(message.Files, file)
 					if err := receiver.deps.DBC.Save(&file).Error; err != nil {
-						lgr.With(logger.ERROR, errors.WithStack(err)).Error("Failed to save file with photo")
+						logger.With(log.ERROR, errors.WithStack(err)).Error("Failed to save file with photo")
 						// NOTE: important failure
 					}
 				}
@@ -185,11 +185,11 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 			receiver.deps.Logger.Debug("responder started working")
 			message = nil
 		case <-ctx.Done():
-			lgr := receiver.deps.Logger
+			logger := receiver.deps.Logger
 			if err := ctx.Err(); err != nil {
-				lgr = lgr.With(logger.ERROR, errors.WithStack(err))
+				logger = logger.With(log.ERROR, errors.WithStack(err))
 			}
-			lgr.Debug("telegram receiver context closed")
+			logger.Debug("telegram receiver context closed")
 			return
 		}
 	}

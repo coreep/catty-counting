@@ -8,7 +8,7 @@ import (
 
 	"github.com/EPecherkin/catty-counting/db"
 	"github.com/EPecherkin/catty-counting/deps"
-	"github.com/EPecherkin/catty-counting/logger"
+	"github.com/EPecherkin/catty-counting/log"
 	"github.com/EPecherkin/catty-counting/messenger/base"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
@@ -33,7 +33,7 @@ type Responder struct {
 }
 
 func NewResponder(close func(), message db.Message, onMessage base.OnMessageCallback, receiver *Receiver, deps deps.Deps) *Responder {
-	deps.Logger = deps.Logger.With(logger.CALLER, "messenger.telegram.Responder")
+	deps.Logger = deps.Logger.With(log.CALLER, "messenger.telegram.Responder")
 
 	return &Responder{close: close, message: message, onMessage: onMessage, receiver: receiver, deps: deps, response: make(chan string)}
 }
@@ -42,14 +42,14 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 	defer func() {
 		resp.deps.Logger.Debug("stopping responder")
 		if err := recover(); err != nil {
-			resp.deps.Logger.With(logger.ERROR, err).Error("panic in GoRespond")
+			resp.deps.Logger.With(log.ERROR, err).Error("panic in GoRespond")
 		}
 		resp.close()
 	}()
 
 	responseMessage, err := resp.sendMessage("Thinking...")
 	if err != nil {
-		resp.deps.Logger.With(logger.ERROR, err).Error("Failed to send initial message")
+		resp.deps.Logger.With(log.ERROR, err).Error("Failed to send initial message")
 		return
 	}
 
@@ -65,18 +65,18 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			lgr := resp.deps.Logger
+			logger := resp.deps.Logger
 			err = ctx.Err()
 			if err != nil {
-				lgr = lgr.With(logger.ERROR, errors.WithStack(err))
+				logger = logger.With(log.ERROR, errors.WithStack(err))
 			}
-			lgr.Debug("telegram responder context closed")
+			logger.Debug("telegram responder context closed")
 			return
 		case chunk, ok := <-resp.response:
 			if !ok {
 				resp.deps.Logger.Debug("response channel closed")
 				if err = resp.editMessage(responseMessage, responseText); err != nil {
-					resp.deps.Logger.With(logger.ERROR, err).Error("Failed to update message last time")
+					resp.deps.Logger.With(log.ERROR, err).Error("Failed to update message last time")
 				}
 				return
 			}
@@ -87,14 +87,14 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 				lastUpdate = time.Now()
 				sentText = responseText
 				if err = resp.editMessage(responseMessage, responseText); err != nil {
-					resp.deps.Logger.With(logger.ERROR, err).Error("Failed to update message")
+					resp.deps.Logger.With(log.ERROR, err).Error("Failed to update message")
 					return
 				}
 			} else if since := time.Since(lastUpdate); since > THINKING_THRESHOLD {
 				dots := strings.Repeat(".", 1+int(since.Seconds())%3)
 				thinking := "\n(Thinking" + dots + ")"
 				if err = resp.editMessage(responseMessage, responseText+thinking); err != nil {
-					resp.deps.Logger.With(logger.ERROR, err).Error("Failed to update thinking")
+					resp.deps.Logger.With(log.ERROR, err).Error("Failed to update thinking")
 				}
 			}
 		}
@@ -105,7 +105,7 @@ func (resp *Responder) goOnMessage(ctx context.Context) {
 	defer func() {
 		close(resp.response)
 		if err := recover(); err != nil {
-			resp.deps.Logger.With(logger.ERROR, err).Error("failed to process onMessage")
+			resp.deps.Logger.With(log.ERROR, err).Error("failed to process onMessage")
 		} else {
 			resp.deps.Logger.Debug("goOnMessage finished")
 		}

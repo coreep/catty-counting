@@ -6,7 +6,7 @@ import (
 
 	"github.com/EPecherkin/catty-counting/config"
 	"github.com/EPecherkin/catty-counting/deps"
-	"github.com/EPecherkin/catty-counting/logger"
+	"github.com/EPecherkin/catty-counting/log"
 	"github.com/EPecherkin/catty-counting/messenger/base"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
@@ -28,7 +28,7 @@ type Client struct {
 }
 
 func CreateClient(deps deps.Deps) (base.Client, error) {
-	deps.Logger = deps.Logger.With(logger.CALLER, "messenger.telegram.client")
+	deps.Logger = deps.Logger.With(log.CALLER, "messenger.telegram.client")
 	deps.Logger.Debug("Creating telegram client")
 	token := config.TelegramToken()
 	tgbot, err := tgbotapi.NewBotAPI(token)
@@ -37,7 +37,7 @@ func CreateClient(deps deps.Deps) (base.Client, error) {
 	}
 	deps.Logger.Info("Authorized on account " + tgbot.Self.UserName)
 
-	if logger.IsDebug() {
+	if log.IsDebug() {
 		tgbot.Debug = true
 	}
 
