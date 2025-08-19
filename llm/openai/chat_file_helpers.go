@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/EPecherkin/catty-counting/config"
 	"github.com/EPecherkin/catty-counting/db"
@@ -12,55 +13,57 @@ import (
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v2"
 	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
+// TODO: memoize
 func (chat *Chat) prepareParseFilePrompt() (string, error) {
-	preStructure := `Parse receipts and products from the provided file to the exact JSON structure:`
-	// Convert to object defition of db.File. Definition is at @db/models.go
-	// file := `{
-	//   "receipts": [
-	//     {
-	// 			"totalBeforeTax": "decimal value with cents. format: 11.23",
-	// 			"tax": "decimal value with cents. format: 11.23",
-	// 			"totalAfterTax": "decimal value with cents. format: 11.23",
-	// 			"time": "creation datetime from the receipt. format: RFC3339",
-	//       "origin": "StoreName; address; phone; email; other info about the store from the receipt",
-	//       "recipient": "LastName FirstName; address; phone; email; other info about the recepient of the receipt",
-	//       "products": [
-	//         {
-	//           "title": "product's title or name",
-	//           "details": "additional details about a particular product, if any",
-	//           "totalBeforeTax": "decimal value with cents. format: 11.23",
-	//           "tax": "if any, decimal value with cents. format: 11.23",
-	//           "totalAfterTax": "if any, decimal value with cents. format: 11.23",
-	//           "categories": [
-	// 						"1-4 categories for the list"
-	//           ],
-	//         }
-	//       ],
-	//       "details": "any other details of what is this receipt about that didn't fit to the other fields",
-	//       "summary": "a short summary about the receipt as for accountant. 50 words max",
-	//     }
-	//   ]
-	// }`
-
+	preFileStructure := `You are an accounting helper tool that extracts financial data from documents, receipts, invoices and etc. Focus on data that could be useful for accounting and financial analyzis.
+Parse receipts and products from the provided file to the exact JSON structure:`
+	file := db.File{
+		Summary: "a short summary about the file. 50 words max",
+		Receipts: []db.Receipt{
+			{
+				TotalBeforeTax: decimal.NewFromFloat(0.0),
+				Tax:            decimal.NewFromFloat(0.0),
+				TotalWithTax:   decimal.NewFromFloat(0.0),
+				OccuredAt:      func() *time.Time { t := time.Now(); return &t }(),
+				Origin:         "store name; address; phone; email; other info about the store from the receipt",
+				Recipient:      "last name first name; address; phone; email; other info about the recepient of the receipt",
+				Details:        "any other details of what is this receipt about that didn't fit to the other fields",
+				Summary:        "a short summary about the receipt. 50 words max",
+				Products: []db.Product{
+					{
+						Title:          "product's title or name",
+						Details:        "additional details about a particular product, if any",
+						TotalBeforeTax: decimal.NewFromFloat(0.0),
+						Tax:            decimal.NewFromFloat(0.0),
+						TotalWithTax:   decimal.NewFromFloat(0.0),
+						Categories: []db.Category{
+							{Title: "Category"},
+						},
+					},
+				},
+			},
+		},
+	}
 	fileStructure, err := json.Marshal(file)
 	if err != nil {
 		return "", fmt.Errorf("marshaling file structure: %w", err)
 	}
-	explanation := `Values of the fields are for reference. If you can't parse a value for a fireld - omit it.
-Focus on data that could be useful for accounting.
-Assigning categories, do not create new categories, use category titles from this list:`
+
+	explanation := `Values of the fields are for reference. If you can't parse a value for a field - omit it.
+Assign 1-4 categories to each product. Do not create new categories, use this list only:`
 	var categories []db.Category
-	if err := chat.deps.DBC.Find(categories); err != nil {
+	if err := chat.deps.DBC.Find(categories).Error; err != nil {
 		return "", fmt.Errorf("fetching categories: %w", err)
 	}
 	categoryList, err := json.Marshal(categories)
 	if err != nil {
 		return "", fmt.Errorf("marshaling categories: %w", err)
 	}
-	return preStructure + string(fileStructure) + explanation + string(categoryList), nil
+	return preFileStructure + string(fileStructure) + explanation + string(categoryList), nil
 }
 
 // Handles all files in the message: expose, extract and persist
@@ -140,10 +143,9 @@ func (chat *Chat) parseFile(ctx context.Context, fileURL string, logger *slog.Lo
 	params := openai.ChatCompletionNewParams{
 		Model: openai.ChatModelGPT5,
 		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage(PROMPT_SYSTEM),
+			openai.SystemMessage(parseFilePrompt),
 			openai.UserMessage(
 				[]openai.ChatCompletionContentPartUnionParam{
-					openai.TextContentPart(parseFilePrompt),
 					openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{URL: fileURL, Detail: "auto"}),
 				},
 			),
@@ -163,11 +165,11 @@ func (chat *Chat) parseFile(ctx context.Context, fileURL string, logger *slog.Lo
 		assistantText = resp.Choices[0].Message.Content
 	}
 	if assistantText == "" {
-		return parsedFile, fmt.Errorf("empty extraction response")
+		return parsedFile, errors.New("empty extraction response")
 	}
 
 	if err := json.Unmarshal([]byte(assistantText), &parsedFile); err != nil {
-		return parsedFile, fmt.Errorf("unmarshal extraction json: %w", errors.WithStack(err))
+		return parsedFile, fmt.Errorf("unmarshal parsed data: %w", errors.WithStack(err))
 	}
 	logger.Debug("File parsed ok")
 
@@ -176,6 +178,12 @@ func (chat *Chat) parseFile(ctx context.Context, fileURL string, logger *slog.Lo
 
 // Writes receipts/products/categories to DB and returns created receipts count
 func (chat *Chat) addParsedToFile(file db.File, parsedFile db.File, logger *slog.Logger) error {
+	file.Summary = parsedFile.Summary
+	if err := chat.deps.DBC.Save(file).Error; err != nil {
+		// TODO: handle
+		logger.With(log.ERROR, errors.WithStack(err)).Error("failed to update file's summary")
+	}
+
 	for _, r := range parsedFile.Receipts {
 		receipt := db.Receipt{
 			FileID:         file.ID,

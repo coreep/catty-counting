@@ -18,7 +18,7 @@ func (chat *Chat) handleResponse(ctx context.Context, message *db.Message) error
 	}
 	resp, err := chat.oClient.Chat.Completions.New(ctx, params)
 	if err != nil {
-		return fmt.Errorf("getting to user response", errors.WithStack(err))
+		return fmt.Errorf("getting to user response: %w", errors.WithStack(err))
 	}
 	chat.deps.Logger.Debug("Parsing finished")
 	assistantText := ""
@@ -26,7 +26,7 @@ func (chat *Chat) handleResponse(ctx context.Context, message *db.Message) error
 		assistantText = resp.Choices[0].Message.Content
 	}
 	if assistantText == "" {
-		return fmt.Errorf("empty to user response")
+		return errors.New("empty to user response")
 	}
 
 	responseMessage := db.Message{

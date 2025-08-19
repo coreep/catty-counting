@@ -12,10 +12,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-const PROMPT_SYSTEM = `You are an accounting helping assistant, which is capable of processing docs, receipts, building statistics and giving advices.`
+const PROMPT_SYSTEM_ASSISTANT = `You are an accounting helping assistant, which is capable of processing docs, receipts, building statistics and giving advices. Receiving a message from user, you should analyze if you have necessary details in your context to provide good answer. In case you need any more data about the user - ask user about it. You also have access to tools to retrieve stored information about the user and past interations. Keep your answers reasonably short.`
 
 type Chat struct {
-	userID  unit
+	userID  uint
 	oClient *openai.Client
 	deps    deps.Deps
 	history []openai.ChatCompletionMessageParamUnion
@@ -76,7 +76,7 @@ func (chat *Chat) loadHistory() error {
 	}
 
 	chat.history = []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(PROMPT_SYSTEM),
+		openai.SystemMessage(PROMPT_SYSTEM_ASSISTANT),
 	}
 
 	for _, msg := range messages {

@@ -1,6 +1,8 @@
 package db
 
 import (
+	"time"
+
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
@@ -51,11 +53,11 @@ type File struct {
 	Size         int64
 	MimeType     string `gorm:"type:varchar(256)"`
 	OriginalName string `gorm:"type:varchar(1024)"`
-	Summary      string `gorm:"type:text"`
+	Summary      string `gorm:"type:text" json:"summary"`
 	TelegramID   string
 	Message      *Message
 	ExposedFile  *ExposedFile
-	Receipts     []Receipt
+	Receipts     []Receipt `json:"receipts"`
 }
 
 // Reperesents an access link for LLM to download the file
@@ -77,6 +79,7 @@ type Receipt struct {
 	Recipient      string          `gorm:"type:text" json:"recipient"`
 	Details        string          `gorm:"type:text" json:"details"`
 	Summary        string          `gorm:"type:text" json:"summary"`
+	OccuredAt      *time.Time      `gorm:"type:timestamp" json:"occured_at`
 	File           *File
 	Products       []Product
 }
