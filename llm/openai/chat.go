@@ -15,19 +15,20 @@ import (
 const PROMPT_SYSTEM = `You are an accounting helping assistant, which is capable of processing docs, receipts, building statistics and giving advices.`
 
 type Chat struct {
+	userID  unit
 	oClient *openai.Client
 	deps    deps.Deps
 	history []openai.ChatCompletionMessageParamUnion
 }
 
-func newChat(oClient *openai.Client, deps deps.Deps) *Chat {
-	deps.Logger = deps.Logger.With(log.CALLER, "openai.Chat")
+func newChat(userID uint, oClient *openai.Client, deps deps.Deps) *Chat {
+	deps.Logger = deps.Logger.With(log.CALLER, "openai.Chat").With(log.USER_ID, userID)
 	deps.Logger.Debug("Creating openai chat")
-	return &Chat{oClient: oClient, deps: deps}
+	return &Chat{userID: userID, oClient: oClient, deps: deps}
 }
 
 func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan chan<- string) {
-	chat.deps.Logger = chat.deps.Logger.With(log.USER_ID, message.UserID, log.MESSAGE_ID, message.ID)
+	chat.deps.Logger = chat.deps.Logger.With(log.MESSAGE_ID, message.ID)
 	chat.deps.Logger.Debug("starting talking")
 	defer func() {
 		if err := recover(); err != nil {
@@ -37,47 +38,40 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 		}
 	}()
 
+	// TODO: graceful shutdown
+	if err := chat.loadHistory(); err != nil {
+		chat.deps.Logger.With(log.ERROR, errors.WithStack(err)).Error("failed to load user's history")
+	}
+	chat.history = append(chat.history, openai.UserMessage(
+		[]openai.ChatCompletionContentPartUnionParam{
+			openai.TextContentPart(message.Text),
+		},
+	))
+
 	if err := chat.deps.DBC.Preload("Files.ExposedFile").Preload("Files").First(&message, message.ID).Error; err != nil {
 		chat.deps.Logger.With(log.ERROR, errors.WithStack(err)).Error("failed to preload message files, falling back to provided message")
 	}
 
-	fileCount := len(message.Files)
-	
-	if fileCount > 0 {
-		if err := chat.processFiles(ctx, &message); err != nil {
-			chat.deps.Logger.With(log.ERROR, err).Error("failed to process provided files")
-		}
-
-		receiptCount := 0
-		for _, f := range message.Files {
-			receiptCount += len(f.Receipts)
-		}
-		chat.deps.Logger.With("files", fileCount).With("receipts", receiptCount).Debug("Files processed")
-		// TODO:send analysis result to LLM and answer user's request
-		summaryText := fmt.Sprintf("Processed %d files, created %d receipts.", fileCount, receiptCount)
+	if err := chat.handleFiles(ctx, &message); err != nil {
+		chat.deps.Logger.With(log.ERROR, err).Error("failed to process provided files")
+		responseChan <- "Sorry, I failed to handle your request... Could you try again, please?"
+		return
 	}
 
-	responseMessage := db.Message{
-		UserID:    message.UserID,
-		Text:      summaryText,
-		Direction: db.MessageDirectionToUser,
+	if err := chat.handleResponse(ctx, &message); err != nil {
+		chat.deps.Logger.With(log.ERROR, err).Error("failed to handle response")
+		responseChan <- "Sorry, I failed to handle your request... Could you try again, please?"
+		return
 	}
-	if err := chat.deps.DBC.Create(&responseMessage).Error; err != nil {
-		chat.deps.Logger.With(log.ERROR, errors.WithStack(err)).Error("failed to save summary message")
-	}
-
-	responseChan <- summaryText
-	assistantMessage := openai.AssistantMessage(responseMessage.Text)
-	chat.history = append(chat.history, assistantMessage)
 }
 
-func (chat *Chat) loadHistory(userID uint) error {
+func (chat *Chat) loadHistory() error {
 	if len(chat.history) > 0 {
 		return nil
 	}
 
 	var messages []db.Message
-	if err := chat.deps.DBC.Where("user_id = ?", userID).Order("created_at asc").Find(&messages).Error; err != nil {
+	if err := chat.deps.DBC.Where("user_id = ?", chat.userID).Order("created_at asc").Find(&messages).Error; err != nil {
 		return fmt.Errorf("loading messages from db: %w", errors.WithStack(err))
 	}
 
@@ -92,7 +86,7 @@ func (chat *Chat) loadHistory(userID uint) error {
 					openai.TextContentPart(msg.Text),
 				},
 			))
-		} else {
+		} else if msg.Direction == db.MessageDirectionToUser {
 			chat.history = append(chat.history, openai.AssistantMessage(msg.Text))
 		}
 	}

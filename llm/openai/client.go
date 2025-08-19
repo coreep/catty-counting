@@ -32,10 +32,11 @@ func CreateClient(deps deps.Deps) (base.Client, error) {
 
 func (client *Client) HandleMessage(ctx context.Context, message db.Message, response chan<- string) {
 	client.mu.Lock()
-	chat, ok := client.chatPerUser[message.UserID]
+	userID := message.UserID
+	chat, ok := client.chatPerUser[userID]
 	if !ok {
-		chat = newChat(client.oClient, client.deps)
-		client.chatPerUser[message.UserID] = chat
+		chat = newChat(userID, client.oClient, client.deps)
+		client.chatPerUser[userID] = chat
 	}
 	client.mu.Unlock()
 
