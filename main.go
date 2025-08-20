@@ -52,12 +52,11 @@ func main() {
 }
 
 func initialize(ctx context.Context) (logger *slog.Logger, databaseConnection *gorm.DB, filesBucket *blob.Bucket, _ llm.Client, _ messenger.Client, _ error) {
-	logger = log.NewLogger()
-
 	if err := config.Init(); err != nil {
-		return logger, nil, nil, nil, nil, fmt.Errorf("initializing config: %w", err)
+		return log.NewLogger(), nil, nil, nil, nil, fmt.Errorf("initializing config: %w", err) // LOG_LEVEL for logger is available only after config.Init
 	}
 
+	logger = log.NewLogger() // LOG_LEVEL for logger is available only after config.Init
 	dbc, err := db.NewConnection()
 	if err != nil {
 		return logger, nil, nil, nil, nil, fmt.Errorf("initializing database connection: %w", err)

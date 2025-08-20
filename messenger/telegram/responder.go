@@ -75,6 +75,11 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 		case chunk, ok := <-resp.response:
 			if !ok {
 				resp.deps.Logger.Debug("response channel closed")
+				if responseText == "" {
+					resp.deps.Logger.Error("Response from LLM is empty.")
+					// TODO: move to constant
+					responseText = "Sorry, I couldn't process that. Could you try to re-phrase that?"
+				}
 				if err = resp.editMessage(responseMessage, responseText); err != nil {
 					resp.deps.Logger.With(log.ERROR, err).Error("Failed to update message last time")
 				}

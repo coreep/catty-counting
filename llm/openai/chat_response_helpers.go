@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (chat *Chat) handleResponse(ctx context.Context, message *db.Message) error {
+func (chat *Chat) handleResponse(ctx context.Context, message *db.Message) (responseFromLLmToUser string, err error) {
 	userMessageParts := []openai.ChatCompletionContentPartUnionParam{}
 	if message.Text != "" {
 		userMessageParts = append(userMessageParts, openai.TextContentPart(message.Text))
@@ -33,7 +33,7 @@ func (chat *Chat) handleResponse(ctx context.Context, message *db.Message) error
 	}
 	resp, err := chat.oClient.Chat.Completions.New(ctx, params)
 	if err != nil {
-		return fmt.Errorf("getting to user response: %w", errors.WithStack(err))
+		return "", fmt.Errorf("getting to user response: %w", errors.WithStack(err))
 	}
 	chat.deps.Logger.Debug("request response to user complete")
 	assistantText := ""
@@ -41,7 +41,7 @@ func (chat *Chat) handleResponse(ctx context.Context, message *db.Message) error
 		assistantText = resp.Choices[0].Message.Content
 	}
 	if assistantText == "" {
-		return errors.New("empty response to user")
+		return "", errors.New("empty response to user")
 	}
 
 	responseMessage := db.Message{
@@ -56,5 +56,5 @@ func (chat *Chat) handleResponse(ctx context.Context, message *db.Message) error
 	assistantMessage := openai.AssistantMessage(assistantText)
 	chat.history = append(chat.history, assistantMessage)
 
-	return nil
+	return assistantText, nil
 }

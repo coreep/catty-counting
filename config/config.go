@@ -30,6 +30,7 @@ func Init() error {
 	if logLevel == "" {
 		logLevel = "info"
 	}
+	fmt.Println(logLevel)
 
 	apiPort = os.Getenv("API_PORT")
 	if apiPort == "" {

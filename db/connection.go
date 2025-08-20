@@ -46,10 +46,38 @@ func NewConnection() (*gorm.DB, error) {
 		return nil, fmt.Errorf("connecting to database: %w", errors.WithStack(err))
 	}
 
-	err = db.AutoMigrate(&User{}, &Chat{}, &Message{}, &File{}, &ExposedFile{})
-	if err != nil {
+	if err := db.AutoMigrate(&User{}, &Chat{}, &Message{}, &File{}, &ExposedFile{}, &Receipt{}, &Product{}, &Category{}, &ProductCategory{}); err != nil {
 		return nil, fmt.Errorf("auto-migrating database: %w", errors.WithStack(err))
 	}
 
+	if err := seed(db); err != nil {
+		return nil, fmt.Errorf("seeding database: %w", errors.WithStack(err))
+	}
+
 	return db, nil
+}
+
+func seed(db *gorm.DB) error {
+	categories := []Category{
+		{Title: "Housing", Details: "Mortgage or rent;Property taxes;Household repairs;HOA fees"},
+		{Title: "Transportation", Details: "Car payment;Car warranty;Gas;Tires;Maintenance and oil changes;Parking fees;Repairs;Registration and DMV Fees"},
+		{Title: "Food", Details: "Groceries;Restaurants;Pet food"},
+		{Title: "Utilities", Details: "Electricity;Water;Garbage;Phones;Cable;Internet"},
+		{Title: "Clothing", Details: "Adults’ clothing;Adults’ shoes;Children’s clothing;Children’s shoes"},
+		{Title: "Medical/Healthcare", Details: "Primary care;Dental care;Specialty care (dermatologists, orthodontics, optometrists, etc.);Urgent care;Medications;Medical devices"},
+		{Title: "Insurance", Details: "Health insurance;Homeowner’s or renter’s insurance;Home warranty or protection plan;Auto insurance;Life insurance;Disability insurance"},
+		{Title: "Household Items/Supplies", Details: "Toiletries;Laundry detergent;Dishwasher detergent;Cleaning supplies;Tools"},
+		{Title: "Personal", Details: "Gym memberships;Haircuts;Salon services;Cosmetics (like makeup or services like laser hair removal);Babysitter;Subscriptions"},
+		{Title: "Debt", Details: "Personal loans;Student loans;Credit cards"},
+		{Title: "Retirement", Details: "Financial planning;Investing"},
+		{Title: "Education", Details: "Children’s college;Your college;School supplies;Books"},
+		{Title: "Savings", Details: "Emergency fund;Big purchases like a new mattress or laptop;Other savings"},
+		{Title: "Gifts/Donations", Details: "Birthday;Anniversary;Wedding;Christmas;Special occasion;Charities"},
+		{Title: "Entertainment", Details: "Alcohol and/or bars;Games;Movies;Concerts;Vacations;Subscriptions (Netflix, Amazon, Hulu, etc.)"},
+	}
+
+	if err := db.Create(&categories).Error; err != nil {
+		return fmt.Errorf("seeding categories: %w", errors.WithStack(err))
+	}
+	return nil
 }

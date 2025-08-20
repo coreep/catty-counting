@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/EPecherkin/catty-counting/config"
 	"github.com/EPecherkin/catty-counting/db"
 	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/log"
@@ -49,15 +48,19 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 
 	if err := chat.handleFiles(ctx, &message); err != nil {
 		chat.deps.Logger.With(log.ERROR, err).Error("failed to process provided files")
+		// TODO: move to constant
 		responseChan <- "Sorry, I failed to handle your request... Could you try again, please?"
 		return
 	}
 
-	if err := chat.handleResponse(ctx, &message); err != nil {
+	response, err := chat.handleResponse(ctx, &message)
+	if err != nil {
 		chat.deps.Logger.With(log.ERROR, err).Error("failed to handle response")
+		// TODO: move to constant
 		responseChan <- "Sorry, I failed to handle your request... Could you try again, please?"
 		return
 	}
+	responseChan <- response
 }
 
 func (chat *Chat) loadHistory() error {
@@ -87,13 +90,4 @@ func (chat *Chat) loadHistory() error {
 	}
 
 	return nil
-}
-
-func (chat *Chat) handleError(err error, details string) string {
-	chat.deps.Logger.With(log.ERROR, err).Error(details)
-	if config.LogDebug() {
-		return fmt.Sprintf(details+": %+v", err)
-	} else {
-		return "Sorry, something went wrong"
-	}
 }
