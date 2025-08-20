@@ -17,7 +17,6 @@ import (
 
 const (
 	EDIT_INTERVAL      = 2 * time.Second
-	THINKING_THRESHOLD = 1 * time.Second
 )
 
 type Responder struct {
@@ -96,8 +95,9 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 					resp.deps.Logger.With(log.ERROR, err).Error("Failed to update message")
 					return
 				}
-			} else if since := time.Since(lastUpdate); since > THINKING_THRESHOLD {
-				dots := strings.Repeat(".", 1+int(since.Seconds())%3)
+			} else {
+				since := time.Since(lastUpdate)
+				dots := strings.Repeat(".", 1+int(since.Seconds())%(int(EDIT_INTERVAL.Seconds())*3))
 				thinking := "\n(Thinking" + dots + ")"
 				if err = resp.editMessage(responseMessage, responseText+thinking); err != nil {
 					resp.deps.Logger.With(log.ERROR, err).Error("Failed to update thinking")

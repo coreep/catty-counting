@@ -16,13 +16,17 @@ func (chat *Chat) handleResponse(ctx context.Context, message *db.Message) (resp
 	userMessageParts := []openai.ChatCompletionContentPartUnionParam{}
 	if message.Text != "" {
 		userMessageParts = append(userMessageParts, openai.TextContentPart(message.Text))
+		chat.deps.Logger.With("message", message.Text).Debug("text appended to request for response")
 	}
+	// TODO: files seems to be empty
+	// TODO: need separate entities to serialize/deserialize to
 	for _, f := range message.Files {
 		fileDetails, err := json.Marshal(f)
 		if err != nil {
 			chat.deps.Logger.With(log.ERROR, errors.WithStack(err)).Error("unable to marshal file")
 			continue
 		}
+		chat.deps.Logger.With("file", string(fileDetails)).Debug("file appended to request for response")
 		userMessageParts = append(userMessageParts, openai.TextContentPart("File provided: "+string(fileDetails)))
 	}
 
