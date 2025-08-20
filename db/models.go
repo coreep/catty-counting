@@ -75,6 +75,7 @@ type Receipt struct {
 	TotalBeforeTax decimal.Decimal `gorm:"type:decimal(20,2)" json:"total_before_tax"`
 	Tax            decimal.Decimal `gorm:"type:decimal(20,2)" json:"tax"`
 	TotalWithTax   decimal.Decimal `gorm:"type:decimal(20,2)" json:"total_with_tax"`
+	Currency       string          `gorm:"type:varchar(10)" json:"currency"`
 	Origin         string          `gorm:"type:text" json:"origin"`
 	Recipient      string          `gorm:"type:text" json:"recipient"`
 	Details        string          `gorm:"type:text" json:"details"`

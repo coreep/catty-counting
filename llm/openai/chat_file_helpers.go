@@ -26,12 +26,13 @@ Parse receipts and products from the provided file to the exact JSON structure:`
 		Summary: "a short summary about the file. 50 words max",
 		Receipts: []db.Receipt{
 			{
-				TotalBeforeTax: decimal.NewFromFloat(0.0),
-				Tax:            decimal.NewFromFloat(0.0),
-				TotalWithTax:   decimal.NewFromFloat(0.0),
 				OccuredAt:      lo.ToPtr(time.Now()),
 				Origin:         "store name; address; phone; email; other info about the store from the receipt",
 				Recipient:      "last name first name; address; phone; email; other info about the recepient of the receipt",
+				Currency:       "3 letter currency code of the receipt",
+				TotalBeforeTax: decimal.NewFromFloat(0.0),
+				Tax:            decimal.NewFromFloat(0.0),
+				TotalWithTax:   decimal.NewFromFloat(0.0),
 				Details:        "any other details of what is this receipt about that didn't fit to the other fields",
 				Summary:        "a short summary about the receipt. 50 words max",
 				Products: []db.Product{
