@@ -19,7 +19,7 @@ import (
 )
 
 // TODO: memoize
-func (chat *Chat) prepareParseFilePrompt() (string, error) {
+func (chat *Chat) promptParseFile() (string, error) {
 	preFileStructure := `You are an accounting helper tool that extracts financial data from documents, receipts, invoices and etc. Focus on data that could be useful for accounting and financial analyzis.
 Parse receipts and products from the provided file to the exact JSON structure:`
 	file := db.File{
@@ -74,7 +74,7 @@ func (chat *Chat) handleFiles(ctx context.Context, message *db.Message) error {
 		return nil
 	}
 	chat.deps.Logger.With("files", len(message.Files)).Debug("handling files")
-	for _, file := range message.Files {
+	for i, file := range message.Files {
 		logger := chat.deps.Logger.With(log.FILE_ID, file.ID)
 
 		fileURL, err := chat.exposeFile(&file)
@@ -92,6 +92,7 @@ func (chat *Chat) handleFiles(ctx context.Context, message *db.Message) error {
 		if err := chat.addParsedToFile(&file, parsedData, logger); err != nil {
 			return fmt.Errorf("saving parsed data on file: %w", err)
 		}
+		message.Files[i] = file
 	}
 	var receipts []db.Receipt
 	for _, f := range message.Files {
@@ -135,15 +136,14 @@ func (chat *Chat) parseFile(ctx context.Context, fileURL string, logger *slog.Lo
 	logger.Debug("sending file for parsing")
 	var parsedFile db.File
 
-	parseFilePrompt, err := chat.prepareParseFilePrompt()
+	parseFilePrompt, err := chat.promptParseFile()
 	if err != nil {
 		return parsedFile, fmt.Errorf("preparing parse file prompt: %w", err)
 	}
 
 	params := openai.ChatCompletionNewParams{
-		Model: openai.ChatModelGPT5,
+		Model: VISION_MODEL,
 		Messages: []openai.ChatCompletionMessageParamUnion{
-			// openai.SystemMessage(parseFilePrompt),
 			openai.UserMessage(
 				[]openai.ChatCompletionContentPartUnionParam{
 					openai.TextContentPart(parseFilePrompt),
@@ -200,7 +200,6 @@ func (chat *Chat) addParsedToFile(file *db.File, parsedFile db.File, logger *slo
 		}
 		iterLogger := logger.With(log.RECEIPT_ID, receipt.ID)
 		iterLogger.Debug("Receipt created")
-		file.Receipts = append(file.Receipts, receipt)
 
 		for _, p := range r.Products {
 			product := db.Product{
@@ -218,7 +217,6 @@ func (chat *Chat) addParsedToFile(file *db.File, parsedFile db.File, logger *slo
 			}
 			iterLogger = iterLogger.With(log.RECEIPT_ID, receipt.ID).With(log.PRODUCT_ID, product.ID)
 			iterLogger.Debug("Product created")
-			receipt.Products = append(receipt.Products, product)
 
 			for _, c := range p.Categories {
 				var category db.Category
@@ -240,7 +238,9 @@ func (chat *Chat) addParsedToFile(file *db.File, parsedFile db.File, logger *slo
 				}
 				lgr.Debug("Category attached")
 			}
+			receipt.Products = append(receipt.Products, product)
 		}
+		file.Receipts = append(file.Receipts, receipt)
 	}
 	return nil
 }

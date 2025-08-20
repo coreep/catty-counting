@@ -59,7 +59,7 @@ func (a *Api) provideFile(c *gin.Context) {
 	}
 	defer func() {
 		if err := reader.Close(); err != nil {
-			a.deps.Logger.With(log.ERROR, errors.WithStack(err)).Info("closing blob reader")
+			a.deps.Logger.With(log.ERROR, errors.WithStack(err)).Warn("failed to close blob reader")
 		}
 	}()
 

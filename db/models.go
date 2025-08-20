@@ -79,7 +79,7 @@ type Receipt struct {
 	Recipient      string          `gorm:"type:text" json:"recipient"`
 	Details        string          `gorm:"type:text" json:"details"`
 	Summary        string          `gorm:"type:text" json:"summary"`
-	OccuredAt      *time.Time      `gorm:"type:timestamp" json:"occured_at`
+	OccuredAt      *time.Time      `gorm:"type:timestamp" json:"occured_at"`
 	File           *File
 	Products       []Product
 }

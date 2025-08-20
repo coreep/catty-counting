@@ -92,7 +92,7 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 				With(log.TELEGRAM_MESSAGE_ID, tMessage.MessageID)
 
 			if receiver.responder != nil {
-				logger.Info("receiver received update during another exchange. Interrupting...")
+				logger.Debug("receiver received update during another exchange. Interrupting...")
 				receiver.responder.close()
 			}
 			receiver.deps.Logger = logger

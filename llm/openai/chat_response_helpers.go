@@ -11,14 +11,17 @@ import (
 	"github.com/pkg/errors"
 )
 
+const PROMPT_NO_MESSAGE = `Confirm with a short symmary what files and receipts you have received. 10 words per file max.`
+
 func (chat *Chat) handleResponse(ctx context.Context, message *db.Message) (responseFromLLmToUser string, err error) {
 	chat.deps.Logger.Debug("requesting response to user")
 	userMessageParts := []openai.ChatCompletionContentPartUnionParam{}
 	if message.Text != "" {
 		userMessageParts = append(userMessageParts, openai.TextContentPart(message.Text))
 		chat.deps.Logger.With("message", message.Text).Debug("text appended to request for response")
+	} else {
+		userMessageParts = append(userMessageParts, openai.TextContentPart(PROMPT_NO_MESSAGE))
 	}
-	// TODO: files seems to be empty
 	// TODO: need separate entities to serialize/deserialize to
 	for _, f := range message.Files {
 		fileDetails, err := json.Marshal(f)
@@ -33,7 +36,7 @@ func (chat *Chat) handleResponse(ctx context.Context, message *db.Message) (resp
 	chat.history = append(chat.history, openai.UserMessage(userMessageParts))
 
 	params := openai.ChatCompletionNewParams{
-		Model:    openai.ChatModelGPT5,
+		Model:    ASSISTANT_MODEL,
 		Messages: chat.history,
 	}
 	resp, err := chat.oClient.Chat.Completions.New(ctx, params)
