@@ -3,7 +3,6 @@ package telegram
 import (
 	"context"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
@@ -13,10 +12,11 @@ import (
 	"github.com/EPecherkin/catty-counting/messenger/base"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
+	"github.com/samber/lo"
 )
 
 const (
-	EDIT_INTERVAL      = 2 * time.Second
+	EDIT_INTERVAL = 2 * time.Second
 )
 
 type Responder struct {
@@ -85,7 +85,7 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 				}
 				return
 			}
-			resp.deps.Logger.With("chunk", chunk[:int(math.Min(10, float64(len(chunk))))]).Debug("attaching chunk to response message")
+			resp.deps.Logger.With("chunk", lo.Substring(chunk, 0, 10)).Debug("attaching chunk to response message")
 			responseText += chunk
 		case <-updater.C:
 			if responseText != sentText {

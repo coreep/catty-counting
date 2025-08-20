@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v2"
 	"github.com/pkg/errors"
+	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
@@ -28,7 +29,7 @@ Parse receipts and products from the provided file to the exact JSON structure:`
 				TotalBeforeTax: decimal.NewFromFloat(0.0),
 				Tax:            decimal.NewFromFloat(0.0),
 				TotalWithTax:   decimal.NewFromFloat(0.0),
-				OccuredAt:      func() *time.Time { t := time.Now(); return &t }(),
+				OccuredAt:      lo.ToPtr(time.Now()),
 				Origin:         "store name; address; phone; email; other info about the store from the receipt",
 				Recipient:      "last name first name; address; phone; email; other info about the recepient of the receipt",
 				Details:        "any other details of what is this receipt about that didn't fit to the other fields",
@@ -72,6 +73,7 @@ func (chat *Chat) handleFiles(ctx context.Context, message *db.Message) error {
 		chat.deps.Logger.Debug("Message doesn't have files, skipping")
 		return nil
 	}
+	chat.deps.Logger.With("files", len(message.Files)).Debug("handling files")
 	for _, file := range message.Files {
 		logger := chat.deps.Logger.With(log.FILE_ID, file.ID)
 
@@ -161,7 +163,7 @@ func (chat *Chat) parseFile(ctx context.Context, fileURL string, logger *slog.Lo
 	assistantText := ""
 	if len(resp.Choices) > 0 && resp.Choices[0].Message.Content != "" {
 		assistantText = resp.Choices[0].Message.Content
-	}	else  {
+	} else {
 		return parsedFile, errors.New("empty extraction response")
 	}
 	logger.With("response", assistantText).Debug("Parsing request complete")

@@ -11,6 +11,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/openai/openai-go/v2 v2.0.0
 	github.com/pkg/errors v0.9.1
+	github.com/samber/lo v1.51.0
 	github.com/shopspring/decimal v1.4.0
 	gocloud.dev v0.42.0
 	gorm.io/driver/sqlite v1.6.0
