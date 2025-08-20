@@ -132,9 +132,10 @@ func (chat *Chat) exposeFile(file *db.File) (string, error) {
 	return fmt.Sprintf("%s/api/file/%s", config.Host(), key), nil
 }
 
-// Use OpenAI to extract structured JSON from the file URL
+// Use OpenAI to extract structured JSON from the file URL.
 func (chat *Chat) parseFile(ctx context.Context, fileURL string, logger *slog.Logger) (unpersisted db.File, err error) {
 	logger.Debug("sending file for parsing")
+	// TODO: need separate entities to serialize/deserialize to
 	var parsedFile db.File
 
 	parseFilePrompt, err := chat.promptParseFile()

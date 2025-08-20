@@ -22,7 +22,6 @@ func (chat *Chat) handleResponse(ctx context.Context, message *db.Message) (resp
 	} else {
 		userMessageParts = append(userMessageParts, openai.TextContentPart(PROMPT_NO_MESSAGE))
 	}
-	// TODO: need separate entities to serialize/deserialize to
 	for _, f := range message.Files {
 		fileDetails, err := json.Marshal(f)
 		if err != nil {
