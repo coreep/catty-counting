@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/EPecherkin/catty-counting/db"
@@ -11,22 +12,36 @@ import (
 )
 
 func (chat *Chat) handleResponse(ctx context.Context, message *db.Message) error {
+	userMessageParts := []openai.ChatCompletionContentPartUnionParam{}
+	if message.Text != "" {
+		userMessageParts = append(userMessageParts, openai.TextContentPart(message.Text))
+	}
+	for _, f := range message.Files {
+		fileDetails, err := json.Marshal(f)
+		if err != nil {
+			chat.deps.Logger.With(log.ERROR, errors.WithStack(err)).Error("unable to marshal file")
+			continue
+		}
+		userMessageParts = append(userMessageParts, openai.TextContentPart("File provided: "+string(fileDetails)))
+	}
+
+	chat.history = append(chat.history, openai.UserMessage(userMessageParts))
 
 	params := openai.ChatCompletionNewParams{
-		Model: openai.ChatModelGPT5,
+		Model:    openai.ChatModelGPT5,
 		Messages: chat.history,
 	}
 	resp, err := chat.oClient.Chat.Completions.New(ctx, params)
 	if err != nil {
 		return fmt.Errorf("getting to user response: %w", errors.WithStack(err))
 	}
-	chat.deps.Logger.Debug("Parsing finished")
+	chat.deps.Logger.Debug("request response to user complete")
 	assistantText := ""
 	if len(resp.Choices) > 0 && resp.Choices[0].Message.Content != "" {
 		assistantText = resp.Choices[0].Message.Content
 	}
 	if assistantText == "" {
-		return errors.New("empty to user response")
+		return errors.New("empty response to user")
 	}
 
 	responseMessage := db.Message{

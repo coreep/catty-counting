@@ -41,19 +41,19 @@ func (a *Api) Run(ctx context.Context) {
 
 func (a *Api) provideFile(c *gin.Context) {
 	key := c.Param("key")
-	lgr := a.deps.Logger.With(slog.String("key", key))
+	logger := a.deps.Logger.With(slog.String("key", key))
 
 	var exposedFile db.ExposedFile
 	if err := a.deps.DBC.WithContext(c.Request.Context()).Joins("File").First(&exposedFile, "key = ?", key).Error; err != nil {
-		lgr.With(log.ERROR, err).Error("failed to find exposed file")
+		logger.With(log.ERROR, err).Error("failed to find exposed file")
 		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
 		return
 	}
-	lgr = lgr.With(slog.String("blob_key", exposedFile.File.BlobKey))
+	logger = logger.With(slog.String("blob_key", exposedFile.File.BlobKey))
 
 	reader, err := a.deps.Files.NewReader(c.Request.Context(), exposedFile.File.BlobKey, nil)
 	if err != nil {
-		lgr.With(log.ERROR, err).Error("failed to read from blob")
+		logger.With(log.ERROR, err).Error("failed to read from blob")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read file"})
 		return
 	}
@@ -68,7 +68,7 @@ func (a *Api) provideFile(c *gin.Context) {
 	c.Header("Content-Length", fmt.Sprintf("%d", exposedFile.File.Size))
 
 	if _, err := io.Copy(c.Writer, reader); err != nil {
-		lgr.With(log.ERROR, err).Error("failed to copy file to response")
+		logger.With(log.ERROR, err).Error("failed to copy file to response")
 		return
 	}
 }

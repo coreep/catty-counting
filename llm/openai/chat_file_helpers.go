@@ -72,8 +72,6 @@ func (chat *Chat) handleFiles(ctx context.Context, message *db.Message) error {
 		chat.deps.Logger.Debug("Message doesn't have files, skipping")
 		return nil
 	}
-	// TODO: we intend to mutate db.Message all the way down to the categories
-	// any mutaton to the structure should affect message. Message -> Files -> Receipts -> Products -> Categories
 	for _, file := range message.Files {
 		logger := chat.deps.Logger.With(log.FILE_ID, file.ID)
 
@@ -81,7 +79,7 @@ func (chat *Chat) handleFiles(ctx context.Context, message *db.Message) error {
 		if err != nil {
 			return fmt.Errorf("exposing file: %w", err)
 		}
-		logger.Debug("file exposed. parsing...", "url", fileURL)
+		logger.Debug("file exposed", "url", fileURL)
 
 		// TODO: retry
 		parsedData, err := chat.parseFile(ctx, fileURL, logger)
@@ -89,7 +87,7 @@ func (chat *Chat) handleFiles(ctx context.Context, message *db.Message) error {
 			return fmt.Errorf("parsing file: %w", err)
 		}
 
-		if err := chat.addParsedToFile(file, parsedData, logger); err != nil {
+		if err := chat.addParsedToFile(&file, parsedData, logger); err != nil {
 			return fmt.Errorf("saving parsed data on file: %w", err)
 		}
 	}
@@ -132,7 +130,7 @@ func (chat *Chat) exposeFile(file *db.File) (string, error) {
 
 // Use OpenAI to extract structured JSON from the file URL
 func (chat *Chat) parseFile(ctx context.Context, fileURL string, logger *slog.Logger) (unpersisted db.File, err error) {
-	logger.Debug("Sending file for parsing")
+	logger.Debug("sending file for parsing")
 	var parsedFile db.File
 
 	parseFilePrompt, err := chat.prepareParseFilePrompt()
@@ -177,7 +175,7 @@ func (chat *Chat) parseFile(ctx context.Context, fileURL string, logger *slog.Lo
 }
 
 // Writes receipts/products/categories to DB and returns created receipts count
-func (chat *Chat) addParsedToFile(file db.File, parsedFile db.File, logger *slog.Logger) error {
+func (chat *Chat) addParsedToFile(file *db.File, parsedFile db.File, logger *slog.Logger) error {
 	file.Summary = parsedFile.Summary
 	if err := chat.deps.DBC.Save(file).Error; err != nil {
 		// TODO: handle
@@ -198,8 +196,9 @@ func (chat *Chat) addParsedToFile(file db.File, parsedFile db.File, logger *slog
 		if err := chat.deps.DBC.Create(&receipt).Error; err != nil {
 			return fmt.Errorf("create receipt: %w", errors.WithStack(err))
 		}
-		lgr := logger.With(log.RECEIPT_ID, receipt.ID)
-		lgr.Debug("Receipt created")
+		iterLogger := logger.With(log.RECEIPT_ID, receipt.ID)
+		iterLogger.Debug("Receipt created")
+		file.Receipts = append(file.Receipts, receipt)
 
 		for _, p := range r.Products {
 			product := db.Product{
@@ -211,25 +210,26 @@ func (chat *Chat) addParsedToFile(file db.File, parsedFile db.File, logger *slog
 				TotalWithTax:   p.TotalWithTax,
 			}
 			if err := chat.deps.DBC.Create(&product).Error; err != nil {
-				lgr.With(log.ERROR, errors.WithStack(err)).Error("failed to create product")
+				iterLogger.With(log.ERROR, errors.WithStack(err)).Error("failed to create product")
 				// TODO: handle
 				continue
 			}
-			lgr = lgr.With(log.RECEIPT_ID, receipt.ID).With(log.PRODUCT_ID, product.ID)
-			lgr.Debug("Product created")
+			iterLogger = iterLogger.With(log.RECEIPT_ID, receipt.ID).With(log.PRODUCT_ID, product.ID)
+			iterLogger.Debug("Product created")
+			receipt.Products = append(receipt.Products, product)
 
 			for _, c := range p.Categories {
 				var category db.Category
 				if err := chat.deps.DBC.Where("title = ?", c.Title).First(&category).Error; err != nil {
 					if errors.Is(err, gorm.ErrRecordNotFound) {
-						lgr.With("category", c.Title).Warn("no such category")
+						iterLogger.With("category", c.Title).Warn("no such category")
 					} else {
-						lgr.With(log.ERROR, errors.WithStack(err)).Error("failed to find category")
+						iterLogger.With(log.ERROR, errors.WithStack(err)).Error("failed to find category")
 					}
 					// TODO: handle
 					continue
 				}
-				lgr := lgr.With(log.CATEGORY_ID, category.ID)
+				lgr := iterLogger.With(log.CATEGORY_ID, category.ID)
 				lgr.Debug("Category found")
 
 				if err := chat.deps.DBC.Model(&product).Association("Categories").Append(&category); err != nil {

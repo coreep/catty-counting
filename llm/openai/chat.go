@@ -42,11 +42,6 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 	if err := chat.loadHistory(); err != nil {
 		chat.deps.Logger.With(log.ERROR, errors.WithStack(err)).Error("failed to load user's history")
 	}
-	chat.history = append(chat.history, openai.UserMessage(
-		[]openai.ChatCompletionContentPartUnionParam{
-			openai.TextContentPart(message.Text),
-		},
-	))
 
 	if err := chat.deps.DBC.Preload("Files.ExposedFile").Preload("Files").First(&message, message.ID).Error; err != nil {
 		chat.deps.Logger.With(log.ERROR, errors.WithStack(err)).Error("failed to preload message files, falling back to provided message")

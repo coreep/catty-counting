@@ -21,7 +21,7 @@ func NewConnection() (*gorm.DB, error) {
 	if config.LogDebug() {
 		logLevel = gormlogger.Info
 	}
-	dblgr := gormlogger.New(
+	logger := gormlogger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
 		gormlogger.Config{
 			SlowThreshold:             time.Second,
@@ -39,9 +39,9 @@ func NewConnection() (*gorm.DB, error) {
 	// 	os.Getenv("DB_NAME"),
 	// 	os.Getenv("DB_PORT"),
 	// )
-	// db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: dblgr})
+	// db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logger})
 
-	db, err := gorm.Open(sqlite.Open("tmp/dev.sqlite3"), &gorm.Config{Logger: dblgr})
+	db, err := gorm.Open(sqlite.Open("tmp/dev.sqlite3"), &gorm.Config{Logger: logger})
 	if err != nil {
 		return nil, fmt.Errorf("connecting to database: %w", errors.WithStack(err))
 	}

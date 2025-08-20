@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/EPecherkin/catty-counting/db"
@@ -114,7 +115,8 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 				message.TelegramIDs = append(message.TelegramIDs, tMessage.MessageID)
 			}
 
-			message.Text += tMessage.Text
+			message.Text += " " + tMessage.Text
+			message.Text = strings.Trim(message.Text, " ")
 			if err := receiver.deps.DBC.Save(message).Error; err != nil {
 				receiver.deps.Logger.With(log.ERROR, errors.WithStack(err)).Error("Failed to save message")
 				// NOTE: important failure
