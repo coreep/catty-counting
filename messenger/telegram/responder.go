@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -85,7 +86,7 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 				}
 				return
 			}
-			resp.deps.Logger.With("chunk", chunk).Debug("attaching chunk to response message")
+			resp.deps.Logger.With("chunk", chunk[:int(math.Min(10, float64(len(chunk))))]).Debug("attaching chunk to response message")
 			responseText += chunk
 		case <-updater.C:
 			if responseText != sentText {

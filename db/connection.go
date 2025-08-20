@@ -76,8 +76,15 @@ func seed(db *gorm.DB) error {
 		{Title: "Entertainment", Details: "Alcohol and/or bars;Games;Movies;Concerts;Vacations;Subscriptions (Netflix, Amazon, Hulu, etc.)"},
 	}
 
-	if err := db.Create(&categories).Error; err != nil {
-		return fmt.Errorf("seeding categories: %w", errors.WithStack(err))
+	var existingCategories []Category
+	db.Find(&existingCategories)
+
+	for _, category := range categories {
+		if err := db.First(&Category{}, &Category{Title: category.Title}).Error; err == gorm.ErrRecordNotFound {
+			if err := db.Create(&category).Error; err != nil {
+				return fmt.Errorf("seeding categories: %w", errors.WithStack(err))
+			}
+		}
 	}
 	return nil
 }

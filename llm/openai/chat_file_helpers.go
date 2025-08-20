@@ -19,11 +19,6 @@ import (
 
 // TODO: memoize
 func (chat *Chat) prepareParseFilePrompt() (string, error) {
-	defer func() {
-		if err := recover(); err != nil {
-			fmt.Println("----------------------------------------------------")
-		}
-	}()
 	preFileStructure := `You are an accounting helper tool that extracts financial data from documents, receipts, invoices and etc. Focus on data that could be useful for accounting and financial analyzis.
 Parse receipts and products from the provided file to the exact JSON structure:`
 	file := db.File{
@@ -61,7 +56,7 @@ Parse receipts and products from the provided file to the exact JSON structure:`
 	explanation := `Values of the fields are for reference. If you can't parse a value for a field - omit it.
 Assign 1-4 categories to each product. Do not create new categories, use this list only:`
 	var categories []db.Category
-	if err := chat.deps.DBC.Find(categories).Error; err != nil {
+	if err := chat.deps.DBC.Find(&categories).Error; err != nil {
 		return "", fmt.Errorf("fetching categories: %w", err)
 	}
 	categoryList, err := json.Marshal(categories)
@@ -130,7 +125,7 @@ func (chat *Chat) exposeFile(file *db.File) (string, error) {
 		}
 		file.ExposedFile = &ef
 	}
-	return fmt.Sprintf("%s/%s", config.Host(), key), nil
+	return fmt.Sprintf("%s/api/file/%s", config.Host(), key), nil
 }
 
 // Use OpenAI to extract structured JSON from the file URL
@@ -146,9 +141,10 @@ func (chat *Chat) parseFile(ctx context.Context, fileURL string, logger *slog.Lo
 	params := openai.ChatCompletionNewParams{
 		Model: openai.ChatModelGPT5,
 		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage(parseFilePrompt),
+			// openai.SystemMessage(parseFilePrompt),
 			openai.UserMessage(
 				[]openai.ChatCompletionContentPartUnionParam{
+					openai.TextContentPart(parseFilePrompt),
 					openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{URL: fileURL, Detail: "auto"}),
 				},
 			),
@@ -161,15 +157,14 @@ func (chat *Chat) parseFile(ctx context.Context, fileURL string, logger *slog.Lo
 	if err != nil {
 		return parsedFile, fmt.Errorf("extraction call failed: %w", errors.WithStack(err))
 	}
-	logger.Debug("Parsing request complete")
 
 	assistantText := ""
 	if len(resp.Choices) > 0 && resp.Choices[0].Message.Content != "" {
 		assistantText = resp.Choices[0].Message.Content
-	}
-	if assistantText == "" {
+	}	else  {
 		return parsedFile, errors.New("empty extraction response")
 	}
+	logger.With("response", assistantText).Debug("Parsing request complete")
 
 	if err := json.Unmarshal([]byte(assistantText), &parsedFile); err != nil {
 		return parsedFile, fmt.Errorf("unmarshal parsed data: %w", errors.WithStack(err))

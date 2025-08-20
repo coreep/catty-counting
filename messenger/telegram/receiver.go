@@ -145,24 +145,23 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 			}
 
 			if tMessage.Photo != nil {
-				for _, photo := range tMessage.Photo {
-					logger := receiver.deps.Logger.With(log.TELEGRAM_PHOTO_ID, photo.FileID)
-					logger.Debug("Received photo")
-					blobKey, err := receiver.downloadFile(ctx, photo.FileID)
-					if err != nil {
-						logger.With(log.ERROR, errors.WithStack(err)).Error("Filed to download photo")
-					}
-					file := db.File{
-						MessageID:  message.ID,
-						TelegramID: photo.FileID,
-						Size:       int64(photo.FileSize),
-						BlobKey:    blobKey,
-					}
-					message.Files = append(message.Files, file)
-					if err := receiver.deps.DBC.Save(&file).Error; err != nil {
-						logger.With(log.ERROR, errors.WithStack(err)).Error("Failed to save file with photo")
-						// NOTE: important failure
-					}
+				photo := tMessage.Photo[len(tMessage.Photo)-1]
+				logger := receiver.deps.Logger.With(log.TELEGRAM_PHOTO_ID, photo.FileID)
+				logger.Debug("Received photo")
+				blobKey, err := receiver.downloadFile(ctx, photo.FileID)
+				if err != nil {
+					logger.With(log.ERROR, errors.WithStack(err)).Error("Filed to download photo")
+				}
+				file := db.File{
+					MessageID:  message.ID,
+					TelegramID: photo.FileID,
+					Size:       int64(photo.FileSize),
+					BlobKey:    blobKey,
+				}
+				message.Files = append(message.Files, file)
+				if err := receiver.deps.DBC.Save(&file).Error; err != nil {
+					logger.With(log.ERROR, errors.WithStack(err)).Error("Failed to save file with photo")
+					// NOTE: important failure
 				}
 			}
 
@@ -171,7 +170,7 @@ func (receiver *Receiver) GoReceiveMessages(ctx context.Context) {
 			if message == nil {
 				continue
 			}
-			receiver.deps.Logger.Debug("Message built. Initiating response")
+			receiver.deps.Logger.With("files", len(message.Files)).Debug("Message built. Initiating response")
 			responseCtx, cancel := context.WithCancel(ctx)
 			closeF := func() {
 				if receiver.responder != nil {
