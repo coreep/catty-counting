@@ -19,6 +19,11 @@ import (
 
 // TODO: memoize
 func (chat *Chat) prepareParseFilePrompt() (string, error) {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println("----------------------------------------------------")
+		}
+	}()
 	preFileStructure := `You are an accounting helper tool that extracts financial data from documents, receipts, invoices and etc. Focus on data that could be useful for accounting and financial analyzis.
 Parse receipts and products from the provided file to the exact JSON structure:`
 	file := db.File{

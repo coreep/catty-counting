@@ -12,6 +12,7 @@ import (
 )
 
 func (chat *Chat) handleResponse(ctx context.Context, message *db.Message) (responseFromLLmToUser string, err error) {
+	chat.deps.Logger.Debug("requesting response to user")
 	userMessageParts := []openai.ChatCompletionContentPartUnionParam{}
 	if message.Text != "" {
 		userMessageParts = append(userMessageParts, openai.TextContentPart(message.Text))
