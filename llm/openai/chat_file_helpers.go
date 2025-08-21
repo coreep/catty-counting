@@ -5,71 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/EPecherkin/catty-counting/config"
 	"github.com/EPecherkin/catty-counting/db"
+	"github.com/EPecherkin/catty-counting/llm"
 	"github.com/EPecherkin/catty-counting/log"
+	"github.com/EPecherkin/catty-counting/prompts"
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v2"
 	"github.com/pkg/errors"
-	"github.com/samber/lo"
-	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
-
-// TODO: memoize
-func (chat *Chat) promptParseFile() (string, error) {
-	preFileStructure := `You are an accounting helper tool that extracts financial data from documents, receipts, invoices and etc. Focus on data that could be useful for accounting and financial analyzis.
-Parse receipts and products from the provided file to the exact JSON structure:`
-	file := File4Llm{
-		Summary: "a short summary about the file. 50 words max",
-		Receipts: []Receipt4Llm{
-			{
-				OccuredAt:      time.Now(),
-				Origin:         "store name; address; phone; email; other info about the store from the receipt",
-				Recipient:      "last name first name; address; phone; email; other info about the recepient of the receipt",
-				Currency:       "3 letter currency code of the receipt",
-				TotalBeforeTax: decimal.NewFromFloat(0.0),
-				Tax:            decimal.NewFromFloat(0.0),
-				TotalWithTax:   decimal.NewFromFloat(0.0),
-				Details:        "any other details of what is this receipt about that didn't fit to the other fields",
-				Summary:        "a short summary about the receipt. 50 words max",
-				Products: []Product4Llm{
-					{
-						Title:          "product's title or name",
-						Details:        "additional details about a particular product, if any",
-						TotalBeforeTax: decimal.NewFromFloat(0.0),
-						Tax:            decimal.NewFromFloat(0.0),
-						TotalWithTax:   decimal.NewFromFloat(0.0),
-						Categories: []Category4Llm{
-							{Title: "Category"},
-						},
-					},
-				},
-			},
-		},
-	}
-	fileStructure, err := json.Marshal(file)
-	if err != nil {
-		return "", fmt.Errorf("marshaling file structure: %w", err)
-	}
-
-	explanation := `Values of the fields are for reference. If you can't parse a value for a field - omit it.
-Assign 1-4 categories to each product. Do not create new categories, use this list only:`
-	var categories []db.Category
-	if err := chat.deps.DBC.Find(&categories).Error; err != nil {
-		return "", fmt.Errorf("fetching categories: %w", err)
-	}
-	parsedCategories := lo.Map(categories, func(category db.Category, _ int) Category4Llm {
-		return Category4Llm{Title: category.Title, Details: category.Details}
-	})
-	categoryList, err := json.Marshal(parsedCategories)
-	if err != nil {
-		return "", fmt.Errorf("marshaling categories: %w", err)
-	}
-	return preFileStructure + string(fileStructure) + explanation + string(categoryList), nil
-}
 
 // Handles all files in the message: expose, extract and persist
 func (chat *Chat) handleFiles(ctx context.Context, message *db.Message) error {
@@ -136,21 +82,16 @@ func (chat *Chat) exposeFile(file *db.File) (string, error) {
 }
 
 // Use OpenAI to extract structured JSON from the file URL.
-func (chat *Chat) parseFile(ctx context.Context, fileURL string, logger *slog.Logger) (File4Llm, error) {
+func (chat *Chat) parseFile(ctx context.Context, fileURL string, logger *slog.Logger) (llm.File4Llm, error) {
 	logger.Debug("sending file for parsing")
-	var parsedFile File4Llm
-
-	parseFilePrompt, err := chat.promptParseFile()
-	if err != nil {
-		return parsedFile, fmt.Errorf("preparing parse file prompt: %w", err)
-	}
+	var parsedFile llm.File4Llm
 
 	params := openai.ChatCompletionNewParams{
 		Model: VISION_MODEL,
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(
 				[]openai.ChatCompletionContentPartUnionParam{
-					openai.TextContentPart(parseFilePrompt),
+					openai.TextContentPart(prompts.PROMPT_PARSE_FILE),
 					openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{URL: fileURL, Detail: "auto"}),
 				},
 			),
@@ -180,7 +121,7 @@ func (chat *Chat) parseFile(ctx context.Context, fileURL string, logger *slog.Lo
 }
 
 // Writes receipts/products/categories to DB and returns created receipts count
-func (chat *Chat) updateFileWithParsed(file *db.File, parsedFile File4Llm, logger *slog.Logger) error {
+func (chat *Chat) updateFileWithParsed(file *db.File, parsedFile llm.File4Llm, logger *slog.Logger) error {
 	file.Summary = parsedFile.Summary
 	if err := chat.deps.DBC.Save(file).Error; err != nil {
 		// TODO: handle

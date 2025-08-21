@@ -13,8 +13,10 @@ import (
 	"github.com/EPecherkin/catty-counting/db"
 	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/llm"
+	"github.com/EPecherkin/catty-counting/llm/openai"
 	"github.com/EPecherkin/catty-counting/log"
 	"github.com/EPecherkin/catty-counting/messenger"
+	"github.com/EPecherkin/catty-counting/prompts"
 	"github.com/pkg/errors"
 	"gocloud.dev/blob"
 	_ "gocloud.dev/blob/fileblob"
@@ -67,7 +69,11 @@ func initialize(ctx context.Context) (logger *slog.Logger, databaseConnection *g
 		return logger, nil, nil, nil, nil, fmt.Errorf("initializing file blob: %w", errors.WithStack(err))
 	}
 
-	llmc, err := llm.CreateOpenaiClient(deps.Deps{Logger: logger, DBC: dbc, Files: files})
+	if err := prompts.Init(dbc); err != nil {
+		return logger, nil, nil, nil, nil, fmt.Errorf("initializing prompts: %w", errors.WithStack(err))
+	}
+
+	llmc, err := openai.CreateClient(deps.Deps{Logger: logger, DBC: dbc, Files: files})
 	if err != nil {
 		return logger, nil, nil, nil, nil, fmt.Errorf("initializing llm client: %w", err)
 	}

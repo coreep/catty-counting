@@ -6,12 +6,12 @@ import (
 	"fmt"
 
 	"github.com/EPecherkin/catty-counting/db"
+	"github.com/EPecherkin/catty-counting/llm"
 	"github.com/EPecherkin/catty-counting/log"
+	"github.com/EPecherkin/catty-counting/prompts"
 	"github.com/openai/openai-go/v2"
 	"github.com/pkg/errors"
 )
-
-const PROMPT_NO_MESSAGE = `Confirm with a short symmary what files and receipts you have received. 10 words per file max.`
 
 func (chat *Chat) handleResponse(ctx context.Context, message *db.Message) (responseFromLLmToUser string, err error) {
 	chat.deps.Logger.Debug("requesting response to user")
@@ -20,10 +20,11 @@ func (chat *Chat) handleResponse(ctx context.Context, message *db.Message) (resp
 		userMessageParts = append(userMessageParts, openai.TextContentPart(message.Text))
 		chat.deps.Logger.With("message", message.Text).Debug("text appended to request for response")
 	} else {
-		userMessageParts = append(userMessageParts, openai.TextContentPart(PROMPT_NO_MESSAGE))
+		userMessageParts = append(userMessageParts, openai.TextContentPart(prompts.SUMMARIZE_FILE))
 	}
 	for _, f := range message.Files {
-		fileDetails, err := json.Marshal(dbFileToLlm(f))
+		f4l := llm.DbFileToLlm(f)
+		fileDetails, err := json.Marshal(f4l)
 		if err != nil {
 			chat.deps.Logger.With(log.ERROR, errors.WithStack(err)).Error("unable to marshal file")
 			continue
@@ -46,8 +47,7 @@ func (chat *Chat) handleResponse(ctx context.Context, message *db.Message) (resp
 	assistantText := ""
 	if len(resp.Choices) > 0 && resp.Choices[0].Message.Content != "" {
 		assistantText = resp.Choices[0].Message.Content
-	}
-	if assistantText == "" {
+	} else {
 		return "", errors.New("empty response to user")
 	}
 

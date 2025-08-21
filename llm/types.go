@@ -1,12 +1,17 @@
-package openai
+package llm
 
 import (
+	"context"
 	"time"
 
 	"github.com/EPecherkin/catty-counting/db"
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 )
+
+type Client interface {
+	HandleMessage(ctx context.Context, message db.Message, response chan<- string)
+}
 
 type File4Llm struct {
 	ID       uint          `json:"id,omitempty"`
@@ -44,16 +49,16 @@ type Category4Llm struct {
 	Details string `json:"details,omitempty"`
 }
 
-func dbFileToLlm(file db.File) File4Llm {
+func DbFileToLlm(file db.File) File4Llm {
 	f4l := File4Llm{
 		ID:       file.ID,
 		Summary:  file.Summary,
-		Receipts: lo.Map(file.Receipts, func(receipt db.Receipt, _ int) Receipt4Llm { return dbReceiptToLlm(receipt) }),
+		Receipts: lo.Map(file.Receipts, func(receipt db.Receipt, _ int) Receipt4Llm { return DbReceiptToLlm(receipt) }),
 	}
 	return f4l
 }
 
-func dbReceiptToLlm(receipt db.Receipt) Receipt4Llm {
+func DbReceiptToLlm(receipt db.Receipt) Receipt4Llm {
 	r4l := Receipt4Llm{
 		ID:             receipt.ID,
 		TotalBeforeTax: receipt.TotalBeforeTax,
@@ -65,12 +70,12 @@ func dbReceiptToLlm(receipt db.Receipt) Receipt4Llm {
 		Details:        receipt.Details,
 		Summary:        receipt.Summary,
 		OccuredAt:      receipt.OccuredAt,
-		Products:       lo.Map(receipt.Products, func(product db.Product, _ int) Product4Llm { return dbProductToLlm(product) }),
+		Products:       lo.Map(receipt.Products, func(product db.Product, _ int) Product4Llm { return DbProductToLlm(product) }),
 	}
 	return r4l
 }
 
-func dbProductToLlm(product db.Product) Product4Llm {
+func DbProductToLlm(product db.Product) Product4Llm {
 	p4l := Product4Llm{
 		ID:             product.ID,
 		Title:          product.Title,
@@ -78,12 +83,12 @@ func dbProductToLlm(product db.Product) Product4Llm {
 		TotalBeforeTax: product.TotalBeforeTax,
 		Tax:            product.Tax,
 		TotalWithTax:   product.TotalWithTax,
-		Categories:     lo.Map(product.Categories, func(category db.Category, _ int) Category4Llm { return dbCategoryToLlm(category) }),
+		Categories:     lo.Map(product.Categories, func(category db.Category, _ int) Category4Llm { return DbCategoryToLlm(category) }),
 	}
 	return p4l
 }
 
-func dbCategoryToLlm(category db.Category) Category4Llm {
+func DbCategoryToLlm(category db.Category) Category4Llm {
 	c4l := Category4Llm{
 		ID:      category.ID,
 		Title:   category.Title,
