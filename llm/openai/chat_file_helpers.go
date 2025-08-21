@@ -22,11 +22,11 @@ import (
 func (chat *Chat) promptParseFile() (string, error) {
 	preFileStructure := `You are an accounting helper tool that extracts financial data from documents, receipts, invoices and etc. Focus on data that could be useful for accounting and financial analyzis.
 Parse receipts and products from the provided file to the exact JSON structure:`
-	file := db.File{
+	file := File4Llm{
 		Summary: "a short summary about the file. 50 words max",
-		Receipts: []db.Receipt{
+		Receipts: []Receipt4Llm{
 			{
-				OccuredAt:      lo.ToPtr(time.Now()),
+				OccuredAt:      time.Now(),
 				Origin:         "store name; address; phone; email; other info about the store from the receipt",
 				Recipient:      "last name first name; address; phone; email; other info about the recepient of the receipt",
 				Currency:       "3 letter currency code of the receipt",
@@ -35,14 +35,14 @@ Parse receipts and products from the provided file to the exact JSON structure:`
 				TotalWithTax:   decimal.NewFromFloat(0.0),
 				Details:        "any other details of what is this receipt about that didn't fit to the other fields",
 				Summary:        "a short summary about the receipt. 50 words max",
-				Products: []db.Product{
+				Products: []Product4Llm{
 					{
 						Title:          "product's title or name",
 						Details:        "additional details about a particular product, if any",
 						TotalBeforeTax: decimal.NewFromFloat(0.0),
 						Tax:            decimal.NewFromFloat(0.0),
 						TotalWithTax:   decimal.NewFromFloat(0.0),
-						Categories: []db.Category{
+						Categories: []Category4Llm{
 							{Title: "Category"},
 						},
 					},
@@ -61,7 +61,10 @@ Assign 1-4 categories to each product. Do not create new categories, use this li
 	if err := chat.deps.DBC.Find(&categories).Error; err != nil {
 		return "", fmt.Errorf("fetching categories: %w", err)
 	}
-	categoryList, err := json.Marshal(categories)
+	parsedCategories := lo.Map(categories, func(category db.Category, _ int) Category4Llm {
+		return Category4Llm{Title: category.Title, Details: category.Details}
+	})
+	categoryList, err := json.Marshal(parsedCategories)
 	if err != nil {
 		return "", fmt.Errorf("marshaling categories: %w", err)
 	}
@@ -90,7 +93,7 @@ func (chat *Chat) handleFiles(ctx context.Context, message *db.Message) error {
 			return fmt.Errorf("parsing file: %w", err)
 		}
 
-		if err := chat.addParsedToFile(&file, parsedData, logger); err != nil {
+		if err := chat.updateFileWithParsed(&file, parsedData, logger); err != nil {
 			return fmt.Errorf("saving parsed data on file: %w", err)
 		}
 		message.Files[i] = file
@@ -133,10 +136,9 @@ func (chat *Chat) exposeFile(file *db.File) (string, error) {
 }
 
 // Use OpenAI to extract structured JSON from the file URL.
-func (chat *Chat) parseFile(ctx context.Context, fileURL string, logger *slog.Logger) (unpersisted db.File, err error) {
+func (chat *Chat) parseFile(ctx context.Context, fileURL string, logger *slog.Logger) (File4Llm, error) {
 	logger.Debug("sending file for parsing")
-	// TODO: need separate entities to serialize/deserialize to
-	var parsedFile db.File
+	var parsedFile File4Llm
 
 	parseFilePrompt, err := chat.promptParseFile()
 	if err != nil {
@@ -161,7 +163,6 @@ func (chat *Chat) parseFile(ctx context.Context, fileURL string, logger *slog.Lo
 	if err != nil {
 		return parsedFile, fmt.Errorf("extraction call failed: %w", errors.WithStack(err))
 	}
-
 	assistantText := ""
 	if len(resp.Choices) > 0 && resp.Choices[0].Message.Content != "" {
 		assistantText = resp.Choices[0].Message.Content
@@ -179,7 +180,7 @@ func (chat *Chat) parseFile(ctx context.Context, fileURL string, logger *slog.Lo
 }
 
 // Writes receipts/products/categories to DB and returns created receipts count
-func (chat *Chat) addParsedToFile(file *db.File, parsedFile db.File, logger *slog.Logger) error {
+func (chat *Chat) updateFileWithParsed(file *db.File, parsedFile File4Llm, logger *slog.Logger) error {
 	file.Summary = parsedFile.Summary
 	if err := chat.deps.DBC.Save(file).Error; err != nil {
 		// TODO: handle

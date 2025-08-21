@@ -23,7 +23,7 @@ func (chat *Chat) handleResponse(ctx context.Context, message *db.Message) (resp
 		userMessageParts = append(userMessageParts, openai.TextContentPart(PROMPT_NO_MESSAGE))
 	}
 	for _, f := range message.Files {
-		fileDetails, err := json.Marshal(f)
+		fileDetails, err := json.Marshal(dbFileToLlm(f))
 		if err != nil {
 			chat.deps.Logger.With(log.ERROR, errors.WithStack(err)).Error("unable to marshal file")
 			continue

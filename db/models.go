@@ -53,11 +53,11 @@ type File struct {
 	Size         int64
 	MimeType     string `gorm:"type:varchar(256)"`
 	OriginalName string `gorm:"type:varchar(1024)"`
-	Summary      string `gorm:"type:text" json:"summary"`
+	Summary      string `gorm:"type:text"`
 	TelegramID   string
 	Message      *Message
 	ExposedFile  *ExposedFile
-	Receipts     []Receipt `json:"receipts"`
+	Receipts     []Receipt
 }
 
 // Reperesents an access link for LLM to download the file
@@ -72,15 +72,15 @@ type ExposedFile struct {
 type Receipt struct {
 	gorm.Model
 	FileID         uint            `gorm:"index"`
-	TotalBeforeTax decimal.Decimal `gorm:"type:decimal(20,2)" json:"total_before_tax"`
-	Tax            decimal.Decimal `gorm:"type:decimal(20,2)" json:"tax"`
-	TotalWithTax   decimal.Decimal `gorm:"type:decimal(20,2)" json:"total_with_tax"`
-	Currency       string          `gorm:"type:varchar(10)" json:"currency"`
-	Origin         string          `gorm:"type:text" json:"origin"`
-	Recipient      string          `gorm:"type:text" json:"recipient"`
-	Details        string          `gorm:"type:text" json:"details"`
-	Summary        string          `gorm:"type:text" json:"summary"`
-	OccuredAt      *time.Time      `gorm:"type:timestamp" json:"occured_at"`
+	TotalBeforeTax decimal.Decimal `gorm:"type:decimal(20,2)"`
+	Tax            decimal.Decimal `gorm:"type:decimal(20,2)"`
+	TotalWithTax   decimal.Decimal `gorm:"type:decimal(20,2)"`
+	Currency       string          `gorm:"type:varchar(10)"`
+	Origin         string          `gorm:"type:text"`
+	Recipient      string          `gorm:"type:text"`
+	Details        string          `gorm:"type:text"`
+	Summary        string          `gorm:"type:text"`
+	OccuredAt      time.Time       `gorm:"type:timestamp"`
 	File           *File
 	Products       []Product
 }
@@ -89,20 +89,20 @@ type Receipt struct {
 type Product struct {
 	gorm.Model
 	ReceiptID      uint            `gorm:"index"`
-	Title          string          `gorm:"type:text" json:"title"`
-	Details        string          `gorm:"type:text" json:"details"`
-	TotalBeforeTax decimal.Decimal `gorm:"type:decimal(20,2)" json:"total_before_tax"`
-	Tax            decimal.Decimal `gorm:"type:decimal(20,2)" json:"tax"`
-	TotalWithTax   decimal.Decimal `gorm:"type:decimal(20,2)" json:"total_with_tax"`
+	Title          string          `gorm:"type:text"`
+	Details        string          `gorm:"type:text"`
+	TotalBeforeTax decimal.Decimal `gorm:"type:decimal(20,2)"`
+	Tax            decimal.Decimal `gorm:"type:decimal(20,2)"`
+	TotalWithTax   decimal.Decimal `gorm:"type:decimal(20,2)"`
 	Receipt        *Receipt
-	Categories     []Category `gorm:"many2many:product_categories" json:"categories"`
+	Categories     []Category `gorm:"many2many:product_categories"`
 }
 
 // Category groups products
 type Category struct {
 	gorm.Model
-	Title    string    `gorm:"type:text" json:"title"`
-	Details  string    `gorm:"type:text" json:"details"`
+	Title    string    `gorm:"type:text"`
+	Details  string    `gorm:"type:text"`
 	Products []Product `gorm:"many2many:product_categories"`
 }
 
