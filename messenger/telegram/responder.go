@@ -10,6 +10,7 @@ import (
 	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/log"
 	"github.com/EPecherkin/catty-counting/messenger/base"
+	"github.com/EPecherkin/catty-counting/texts"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -77,8 +78,7 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 				resp.deps.Logger.Debug("response channel closed")
 				if responseText == "" {
 					resp.deps.Logger.Error("Response from LLM is empty.")
-					// TODO: move to constant
-					responseText = "Sorry, I couldn't process that. Could you try to re-phrase that?"
+					responseText = texts.FILED_TRY_AGAIN
 				}
 				if err = resp.editMessage(responseMessage, responseText); err != nil {
 					resp.deps.Logger.With(log.ERROR, err).Error("Failed to update message last time")
@@ -98,8 +98,7 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 			} else {
 				since := time.Since(lastUpdate)
 				dots := strings.Repeat(".", 1+int(since.Seconds())%(int(EDIT_INTERVAL.Seconds())*3))
-				thinking := "\n(Thinking" + dots + ")"
-				if err = resp.editMessage(responseMessage, responseText+thinking); err != nil {
+				if err = resp.editMessage(responseMessage, responseText+texts.THINKING + dots); err != nil {
 					resp.deps.Logger.With(log.ERROR, err).Error("Failed to update thinking")
 				}
 			}

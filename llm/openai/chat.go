@@ -8,6 +8,7 @@ import (
 	"github.com/EPecherkin/catty-counting/deps"
 	"github.com/EPecherkin/catty-counting/log"
 	"github.com/EPecherkin/catty-counting/prompts"
+	"github.com/EPecherkin/catty-counting/texts"
 	"github.com/openai/openai-go/v2"
 	"github.com/pkg/errors"
 )
@@ -52,16 +53,14 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 
 	if err := chat.handleFiles(ctx, &message); err != nil {
 		chat.deps.Logger.With(log.ERROR, err).Error("failed to process provided files")
-		// TODO: move to constant
-		responseChan <- "Sorry, I failed to handle your request... Could you try again, please?"
+		responseChan <- texts.FILED_TRY_AGAIN
 		return
 	}
 
 	response, err := chat.handleResponse(ctx, &message)
 	if err != nil {
 		chat.deps.Logger.With(log.ERROR, err).Error("failed to handle response")
-		// TODO: move to constant
-		responseChan <- "Sorry, I failed to handle your request... Could you try again, please?"
+		responseChan <- texts.FILED_TRY_AGAIN
 		return
 	}
 	responseChan <- response
