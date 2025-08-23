@@ -53,14 +53,14 @@ func (chat *Chat) Talk(ctx context.Context, message db.Message, responseChan cha
 
 	if err := chat.handleFiles(ctx, &message); err != nil {
 		chat.deps.Logger.With(log.ERROR, err).Error("failed to process provided files")
-		responseChan <- texts.FILED_TRY_AGAIN
+		responseChan <- texts.FAILED_TRY_AGAIN
 		return
 	}
 
 	response, err := chat.handleResponse(ctx, &message)
 	if err != nil {
 		chat.deps.Logger.With(log.ERROR, err).Error("failed to handle response")
-		responseChan <- texts.FILED_TRY_AGAIN
+		responseChan <- texts.FAILED_TRY_AGAIN
 		return
 	}
 	responseChan <- response

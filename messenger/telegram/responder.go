@@ -78,7 +78,7 @@ func (resp *Responder) GoRespond(ctx context.Context) {
 				resp.deps.Logger.Debug("response channel closed")
 				if responseText == "" {
 					resp.deps.Logger.Error("Response from LLM is empty.")
-					responseText = texts.FILED_TRY_AGAIN
+					responseText = texts.FAILED_TRY_AGAIN
 				}
 				if err = resp.editMessage(responseMessage, responseText); err != nil {
 					resp.deps.Logger.With(log.ERROR, err).Error("Failed to update message last time")
